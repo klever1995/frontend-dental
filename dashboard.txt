@@ -1,0 +1,601 @@
+import { useState, useEffect } from 'react'
+import { DollarSign, Package, TrendingUp, Calendar, Star, ShoppingCart } from 'lucide-react'
+import { obtenerEstadisticas, listarVentas, agruparVentasPorDia, agruparVentasPorCampania, obtenerVentasRecientes } from '../services/ventas'
+import { getEmpresaIdFromToken } from '../services/auth'
+import { useSocket } from '../hooks/useSocket'
+import '../styles/Dashboard.css'
+
+export default function Dashboard() {
+  const [stats, setStats] = useState(null)
+  const [ventas, setVentas] = useState([])
+  const [ventasRecientes, setVentasRecientes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filtroCampania, setFiltroCampania] = useState('todas')
+  const [campanas, setCampanas] = useState([])
+  const [todasLasCampanas, setTodasLasCampanas] = useState([])
+
+  // WebSocket hook
+  const { isConnected, joinEmpresa, onNuevaVenta } = useSocket()
+
+  // Cargar campañas disponibles solo una vez al inicio
+  useEffect(() => {
+    cargarCampanasDisponibles()
+  }, [])
+
+  // Conectar WebSocket y unirse a la sala de la empresa
+  useEffect(() => {
+    const empresaId = getEmpresaIdFromToken()
+    if (empresaId && isConnected) {
+      joinEmpresa(empresaId)
+    }
+  }, [isConnected, joinEmpresa])
+
+  // Escuchar evento de nueva venta (actualización silenciosa)
+  useEffect(() => {
+    const unsubscribe = onNuevaVenta((nuevaVenta) => {
+      console.log('📢 Nueva venta recibida en tiempo real:', nuevaVenta)
+      cargarDatos(true) // 🔥 true = actualización silenciosa sin loading
+      cargarCampanasDisponibles() // 🔥 ACTUALIZA CAMPAÑAS DEL FILTRO EN TIEMPO REAL
+    })
+    return unsubscribe
+  }, [onNuevaVenta])
+
+  // Cargar datos filtrados cuando cambia el filtro
+  useEffect(() => {
+    cargarDatos()
+  }, [filtroCampania])
+
+  const cargarCampanasDisponibles = async () => {
+    try {
+      const empresaId = getEmpresaIdFromToken()
+      const ventasData = await listarVentas({ 
+        empresa_id: empresaId, 
+        limit: 1000, 
+        estado: 'confirmada' 
+      })
+      
+      const campanasUnicas = [...new Set(ventasData.map(v => v.campania_id).filter(Boolean))]
+      setTodasLasCampanas(campanasUnicas)
+      setCampanas(campanasUnicas)
+    } catch (error) {
+      console.error('Error cargando campañas:', error)
+    }
+  }
+
+  // MODIFICADO: parámetro silent para actualización silenciosa
+  const cargarDatos = async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+    }
+    try {
+      const empresaId = getEmpresaIdFromToken()
+      
+      const filtros = { empresa_id: empresaId }
+      if (filtroCampania !== 'todas') {
+        filtros.campania_id = filtroCampania
+      }
+
+      const [statsData, ventasData] = await Promise.all([
+        obtenerEstadisticas(filtros),
+        listarVentas({ ...filtros, limit: 100, estado: 'confirmada' })
+      ])
+
+      setStats(statsData)
+      setVentas(ventasData)
+      setVentasRecientes(obtenerVentasRecientes(ventasData, 8))
+    } catch (error) {
+      console.error('Error cargando dashboard:', error)
+    } finally {
+      if (!silent) {
+        setLoading(false)
+      }
+    }
+  }
+
+  // Procesar datos para gráficas
+  const ventasPorDiaOriginal = agruparVentasPorDia(ventas)
+  const ventasPorCampania = agruparVentasPorCampania(ventas).slice(0, 5)
+
+  // Función para generar rango continuo de fechas (últimos 7 días)
+  const generarRangoFechas = (datos, dias = 7) => {
+    if (!datos.length) return []
+    
+    const mapaPorFecha = new Map()
+    datos.forEach(d => {
+      mapaPorFecha.set(d.fecha, d.total)
+    })
+    
+    const fechasOrdenadas = [...datos.map(d => d.fecha)].sort()
+    const ultimaFechaStr = fechasOrdenadas[fechasOrdenadas.length - 1]
+    
+    const resultado = []
+    for (let i = dias - 1; i >= 0; i--) {
+      const fechaBase = new Date(ultimaFechaStr)
+      fechaBase.setUTCDate(fechaBase.getUTCDate() - i)
+      
+      const año = fechaBase.getUTCFullYear()
+      const mes = String(fechaBase.getUTCMonth() + 1).padStart(2, '0')
+      const dia = String(fechaBase.getUTCDate()).padStart(2, '0')
+      const fechaStr = `${año}-${mes}-${dia}`
+      
+      resultado.push({
+        fecha: fechaBase,
+        fechaStr: fechaStr,
+        total: mapaPorFecha.get(fechaStr) || 0
+      })
+    }
+    return resultado
+  }
+
+  // Obtener los últimos 7 días con rango continuo
+  const ventasUltimos7Dias = generarRangoFechas(ventasPorDiaOriginal, 7)
+  
+  // Calcular el máximo total para la escala de las barras
+  const maxTotal = ventasUltimos7Dias.length > 0 
+    ? Math.max(...ventasUltimos7Dias.map(d => d.total)) 
+    : 1
+
+  if (loading) {
+    return (
+      <div className="dashboard-loading">
+        <div className="spinner"></div>
+        <p>Cargando dashboard...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="dashboard">
+      {/* Indicador de conexión WebSocket */}
+      <div className="socket-status" style={{ position: 'fixed', bottom: 10, right: 10, fontSize: 10, padding: '4px 8px', borderRadius: 4, background: '#1a1c24', color: isConnected ? '#10b981' : '#ef4444', zIndex: 9999 }}>
+        {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+      </div>
+
+      {/* Filtro de campaña */}
+      <div className="dashboard-filtros">
+        <label>Campaña:</label>
+        <select 
+          value={filtroCampania} 
+          onChange={(e) => setFiltroCampania(e.target.value)}
+          className="filtro-select"
+        >
+          <option value="todas">Todas las campañas</option>
+          {todasLasCampanas.map(camp => (
+            <option key={camp} value={camp}>{camp}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div className="dashboard-kpis">
+        <div className="kpi-card">
+          <div className="kpi-icon blue">
+            <DollarSign size={24} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-label">Ingresos Totales</span>
+            <span className="kpi-value">${stats?.total_ingresos?.toFixed(2) || '0.00'}</span>
+          </div>
+        </div>
+
+        <div className="kpi-card">
+          <div className="kpi-icon green">
+            <ShoppingCart size={24} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-label">Ventas Totales</span>
+            <span className="kpi-value">{stats?.total_ventas || 0}</span>
+          </div>
+        </div>
+
+        <div className="kpi-card">
+          <div className="kpi-icon purple">
+            <TrendingUp size={24} />
+          </div>
+          <div className="kpi-info">
+            <span className="kpi-label">Promedio por Venta</span>
+            <span className="kpi-value">${stats?.promedio_venta?.toFixed(2) || '0.00'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráficas */}
+      <div className="dashboard-graficas">
+        <div className="grafica-card">
+          <h3>Ventas por Día</h3>
+          <div className="barras-container">
+            {ventasUltimos7Dias.map((dia, idx) => {
+              const alturaPorcentaje = maxTotal > 0 ? (dia.total / maxTotal) * 100 : 0
+              const fechaMostrar = dia.fechaStr.slice(5).replace('-', '/')
+              return (
+                <div key={idx} className="barra-item">
+                  <div 
+                    className="barra" 
+                    style={{ 
+                      height: `${Math.max(alturaPorcentaje, 4)}px`,
+                      backgroundColor: dia.total > 0 ? '#3b82f6' : '#e5e7eb'
+                    }}
+                  ></div>
+                  <span className="barra-label">{fechaMostrar}</span>
+                  {dia.total > 0 && (
+                    <span className="barra-valor">${dia.total.toFixed(2)}</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="grafica-card">
+          <h3>Top Campañas</h3>
+          <div className="campanas-lista">
+            {ventasPorCampania.map((camp, idx) => (
+              <div key={idx} className="campana-item">
+                <span className="campana-nombre">{camp.campania}</span>
+                <div className="campana-barra-fondo">
+                  <div 
+                    className="campana-barra" 
+                    style={{ width: `${(camp.total / ventasPorCampania[0].total) * 100}%` }}
+                  ></div>
+                </div>
+                <span className="campana-valor">${camp.total.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Ventas recientes */}
+      <div className="dashboard-recientes">
+        <h3>Ventas Recientes</h3>
+        <div className="tabla-wrapper">
+          <table className="tabla-recientes">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Campaña</th>
+                <th>Cantidad</th>
+                <th>Monto</th>
+                <th>Fecha</th>
+                </tr>
+              </thead>
+            <tbody>
+              {ventasRecientes.map(venta => (
+                <tr key={venta.id}>
+                  <td className="producto-nombre">{venta.producto_nombre}      </td>
+                  <td>{venta.campania_id || '—'}</td>
+                  <td>{venta.cantidad}</td>
+                  <td className="monto">${venta.monto_total.toFixed(2)}</td>
+                  <td>{venta.fecha_venta.split('T')[0].split('-').reverse().join('/')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.dashboard {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Loading */
+.dashboard-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #2a2a30;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Filtros */
+.dashboard-filtros {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  background: #111216;
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid #2a2a30;
+}
+
+.dashboard-filtros label {
+  color: #9aa0b0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.filtro-select {
+  background: #1a1c24;
+  border: 1px solid #2a2a30;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.filtro-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* KPIs */
+.dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kpi-icon.blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.kpi-icon.green {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.kpi-icon.purple {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+
+.kpi-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-label {
+  color: #9aa0b0;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.kpi-value {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* Gráficas */
+.dashboard-graficas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.grafica-card {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.grafica-card h3 {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+/* Gráfica de barras */
+.barras-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  height: 200px;
+  gap: 8px;
+}
+
+.barra-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.barra {
+  width: 100%;
+  background: #3b82f6;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height 0.3s ease;
+}
+
+.barra-label {
+  color: #9aa0b0;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+/* Top campañas */
+.campanas-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.campana-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campana-nombre {
+  color: #ffffff;
+  font-size: 13px;
+  width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campana-barra-fondo {
+  flex: 1;
+  height: 8px;
+  background: #1a1c24;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.campana-barra {
+  height: 100%;
+  background: #10b981;
+  border-radius: 4px;
+}
+
+.campana-valor {
+  color: #9aa0b0;
+  font-size: 12px;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Ventas recientes */
+.dashboard-recientes {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.dashboard-recientes h3 {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.tabla-wrapper {
+  overflow-x: auto;
+}
+
+.tabla-recientes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tabla-recientes th {
+  text-align: left;
+  padding: 12px 8px;
+  color: #9aa0b0;
+  font-weight: 500;
+  border-bottom: 1px solid #2a2a30;
+}
+
+.tabla-recientes td {
+  padding: 12px 8px;
+  color: #e0e2e8;
+  border-bottom: 1px solid #2a2a30;
+}
+
+.tabla-recientes tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla-recientes tr:hover {
+  background: #1a1c24;
+}
+
+.producto-nombre {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.monto {
+  color: #10b981;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .dashboard-graficas {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-kpis {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-filtros {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .filtro-select {
+    width: 100%;
+  }
+}
