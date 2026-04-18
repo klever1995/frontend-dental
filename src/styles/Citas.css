@@ -90,6 +90,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  min-width: 700px; /* Aumentado para que quepan las columnas adicionales */
 }
 
 .citas-table th,
@@ -269,6 +270,10 @@
   .btn-cancelar,
   .btn-reagendar {
     flex: 1;
+  }
+  
+  .citas-table {
+    min-width: 600px; /* Ajuste para móviles (scroll horizontal) */
   }
   
   .citas-table th,

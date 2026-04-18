@@ -67,6 +67,21 @@ export function getEmpresaNombreFromToken() {
   return decoded?.empresa_nombre || null;
 }
 
+// 🔥 Función auxiliar para obtener headers con ngrok-skip-browser-warning
+function getHeaders(extraHeaders = {}) {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...extraHeaders
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  // 🔥 Header para ngrok
+  headers['ngrok-skip-browser-warning'] = 'true';
+  return headers;
+}
+
 // Login
 export async function login(credentials) {
   const formData = new URLSearchParams();
@@ -77,6 +92,7 @@ export async function login(credentials) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'ngrok-skip-browser-warning': 'true'  // 🔥 Agregado
     },
     body: formData,
   });
@@ -93,13 +109,8 @@ export async function login(credentials) {
 
 // Obtener usuario actual
 export async function getCurrentUser() {
-  const token = getToken();
-  if (!token) throw new Error('No hay token');
-
   const response = await fetch(`${API_URL}/api/v1/usuarios/me`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
@@ -115,8 +126,8 @@ export function logout() {
   window.location.href = '/login';
 }
 
-// Header de autorización
+// Header de autorización (mantenido por compatibilidad)
 export function authHeader() {
   const token = getToken();
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+  return token ? { 'Authorization': `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' } : { 'ngrok-skip-browser-warning': 'true' };
 }

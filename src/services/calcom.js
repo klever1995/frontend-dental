@@ -7,7 +7,8 @@ function getAuthHeaders() {
   const token = getToken();
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    'Authorization': `Bearer ${token}`,
+    'ngrok-skip-browser-warning': 'true'
   };
 }
 
@@ -42,11 +43,13 @@ export async function consultarSlots(fechaInicio = null, diasMostrar = 5) {
   return response.json();
 }
 
-// Agendar cita
-export async function agendarCita(clienteNombre, clienteEmail, fecha, hora) {
+// Agendar cita (con teléfono)
+export async function agendarCita(clienteNombre, clienteEmail, clienteCedula, clienteTelefono, fecha, hora) {
   const params = new URLSearchParams();
   params.append('cliente_nombre', clienteNombre);
   params.append('cliente_email', clienteEmail);
+  params.append('cliente_cedula', clienteCedula);
+  params.append('cliente_telefono', clienteTelefono);
   params.append('fecha', fecha);
   params.append('hora', hora);
   
@@ -54,7 +57,8 @@ export async function agendarCita(clienteNombre, clienteEmail, fecha, hora) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Bearer ${getToken()}`
+      'Authorization': `Bearer ${getToken()}`,
+      'ngrok-skip-browser-warning': 'true'
     },
     body: params
   });
@@ -68,8 +72,8 @@ export async function agendarCita(clienteNombre, clienteEmail, fecha, hora) {
 }
 
 // Cancelar cita
-export async function cancelarCita(bookingId) {
-  const response = await fetch(`${API_URL}/api/v1/citas/${bookingId}`, {
+export async function cancelarCita(bookingUid) {
+  const response = await fetch(`${API_URL}/api/v1/citas/${bookingUid}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   });
@@ -82,19 +86,21 @@ export async function cancelarCita(bookingId) {
   return response.json();
 }
 
-// Reagendar cita
-export async function reagendarCita(bookingId, nuevaFecha, nuevaHora, clienteNombre, clienteEmail) {
+// Reagendar cita (con teléfono)
+export async function reagendarCita(bookingUid, nuevaFecha, nuevaHora, clienteNombre, clienteEmail, clienteTelefono) {
   const params = new URLSearchParams();
   params.append('nueva_fecha', nuevaFecha);
   params.append('nueva_hora', nuevaHora);
   params.append('cliente_nombre', clienteNombre);
   params.append('cliente_email', clienteEmail);
+  params.append('cliente_telefono', clienteTelefono);
   
-  const response = await fetch(`${API_URL}/api/v1/citas/${bookingId}/reagendar`, {
+  const response = await fetch(`${API_URL}/api/v1/citas/${bookingUid}/reagendar`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Bearer ${getToken()}`
+      'Authorization': `Bearer ${getToken()}`,
+      'ngrok-skip-browser-warning': 'true'
     },
     body: params
   });
@@ -116,6 +122,26 @@ export async function obtenerEstadisticasDashboard() {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Error al obtener estadísticas');
+  }
+  
+  return response.json();
+}
+
+// Obtener historial de citas pasadas por cédula
+export async function obtenerHistorialCitas(cedula, fechaDesde = null, fechaHasta = null) {
+  let url = `${API_URL}/api/v1/citas/historial/${cedula}`;
+  const params = new URLSearchParams();
+  if (fechaDesde) params.append('fecha_desde', fechaDesde);
+  if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+  if (params.toString()) url += `?${params.toString()}`;
+  
+  const response = await fetch(url, {
+    headers: getAuthHeaders()
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Error al obtener historial');
   }
   
   return response.json();

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { obtenerCitas, cancelarCita, reagendarCita } from '../services/calcom';
+import { useSocket } from '../hooks/useSocket';
 import '../styles/Citas.css';
 
 export default function Citas() {
@@ -8,30 +9,53 @@ export default function Citas() {
   const [error, setError] = useState('');
   const [citaSeleccionadaId, setCitaSeleccionadaId] = useState(null);
   
-  // Estado para el modal de reagendar
   const [showModal, setShowModal] = useState(false);
   const [selectedCita, setSelectedCita] = useState(null);
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [nuevaHora, setNuevaHora] = useState('');
   const [accionLoading, setAccionLoading] = useState(false);
 
-  useEffect(() => {
-    cargarCitas();
-  }, []);
+  const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
 
-  const cargarCitas = async () => {
+  // 🔥 Función para recargar citas silenciosamente (sin loading)
+  const recargarCitasSilenciosamente = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await obtenerCitas();
       setCitas(data);
       setError('');
-      setCitaSeleccionadaId(null); // Resetear selección al recargar
+      setCitaSeleccionadaId(null);
+    } catch (err) {
+      console.error('Error al recargar citas:', err);
+    }
+  }, []);
+
+  // 🔥 Función para carga inicial (con loading)
+  const cargarCitasIniciales = useCallback(async () => {
+    try {
+      setLoading(true);
+      await recargarCitasSilenciosamente();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [recargarCitasSilenciosamente]);
+
+  useEffect(() => {
+    const empresaId = 1;
+    if (isConnected) {
+      joinEmpresa(empresaId);
+    }
+  }, [isConnected, joinEmpresa]);
+
+  // Escuchar evento de cita actualizada (actualización silenciosa)
+  useEffect(() => {
+    const unsubscribe = onCitaActualizada((data) => {
+      console.log('📢 Cita actualizada en tiempo real (Citas):', data);
+      recargarCitasSilenciosamente(); // 🔥 Usa recarga silenciosa, no cargarCitas()
+    });
+    return unsubscribe;
+  }, [onCitaActualizada, recargarCitasSilenciosamente]);
 
   const formatFecha = (fechaISO) => {
     const fecha = new Date(fechaISO);
@@ -54,6 +78,14 @@ export default function Citas() {
     return <span className={`status-badge ${s.className}`}>{s.text}</span>;
   };
 
+  const formatearTelefono = (telefono) => {
+    if (!telefono) return '—';
+    if (telefono.startsWith('+593')) {
+      return '0' + telefono.slice(4);
+    }
+    return telefono;
+  };
+
   const obtenerCitaSeleccionada = () => {
     return citas.find(cita => cita.uid === citaSeleccionadaId);
   };
@@ -72,7 +104,7 @@ export default function Citas() {
     try {
       setAccionLoading(true);
       await cancelarCita(cita.uid);
-      await cargarCitas();
+      await recargarCitasSilenciosamente(); // 🔥 Recarga silenciosa después de cancelar
       alert('Cita cancelada exitosamente');
     } catch (err) {
       alert('Error al cancelar: ' + err.message);
@@ -108,10 +140,11 @@ export default function Citas() {
         nuevaFecha,
         nuevaHora,
         selectedCita.cliente_nombre,
-        selectedCita.cliente_email
+        selectedCita.cliente_email,
+        selectedCita.telefono
       );
       setShowModal(false);
-      await cargarCitas();
+      await recargarCitasSilenciosamente(); // 🔥 Recarga silenciosa después de reagendar
       alert('Cita reagendada exitosamente');
     } catch (err) {
       alert('Error al reagendar: ' + err.message);
@@ -119,6 +152,11 @@ export default function Citas() {
       setAccionLoading(false);
     }
   };
+
+  // Carga inicial
+  useEffect(() => {
+    cargarCitasIniciales();
+  }, [cargarCitasIniciales]);
 
   if (loading) {
     return (
@@ -132,14 +170,17 @@ export default function Citas() {
     return (
       <div className="citas-container">
         <div className="error-message">Error: {error}</div>
-        <button onClick={cargarCitas} className="retry-btn">Reintentar</button>
+        <button onClick={cargarCitasIniciales} className="retry-btn">Reintentar</button>
       </div>
     );
   }
 
   return (
     <div className="citas-container">
-      {/* Botones de acción arriba */}
+      <div className="socket-status" style={{ textAlign: 'right', fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444', marginBottom: '10px' }}>
+        {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+      </div>
+
       <div className="citas-acciones">
         <button 
           className="btn-cancelar" 
@@ -167,6 +208,8 @@ export default function Citas() {
                 <th style={{ width: '40px' }}>Seleccionar</th>
                 <th>Paciente</th>
                 <th>Email</th>
+                <th>Cédula</th>
+                <th>Teléfono</th>
                 <th>Fecha y Hora</th>
                 <th>Estado</th>
               </tr>
@@ -185,6 +228,8 @@ export default function Citas() {
                   </td>
                   <td>{cita.cliente_nombre || 'No especificado'}</td>
                   <td>{cita.cliente_email || 'No especificado'}</td>
+                  <td>{cita.cedula || '—'}</td>
+                  <td>{formatearTelefono(cita.telefono)}</td>
                   <td>{formatFecha(cita.start_time)}</td>
                   <td>{getStatusBadge(cita.status)}</td>
                 </tr>
@@ -194,7 +239,6 @@ export default function Citas() {
         </div>
       )}
 
-      {/* Modal para reagendar */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">

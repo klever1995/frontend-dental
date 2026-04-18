@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { obtenerEstadisticasDashboard, obtenerCitas } from '../services/calcom';
+import { useSocket } from '../hooks/useSocket';
 import '../styles/Dashboard.css';
 
 export default function Dashboard() {
@@ -7,14 +8,11 @@ export default function Dashboard() {
   const [citasProximas, setCitasProximas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  const cargarDatos = async () => {
+  const recargarDatosSilenciosamente = useCallback(async () => {
     try {
-      setLoading(true);
       const [estadisticas, todasCitas] = await Promise.all([
         obtenerEstadisticasDashboard(),
         obtenerCitas()
@@ -22,7 +20,6 @@ export default function Dashboard() {
       
       setStats(estadisticas);
       
-      // Filtrar citas próximas (próximos 7 días y no canceladas)
       const hoy = new Date();
       hoy.setHours(0, 0, 0, 0);
       const dentro7Dias = new Date();
@@ -39,16 +36,52 @@ export default function Dashboard() {
       setCitasProximas(proximas);
       setError('');
     } catch (err) {
+      console.error('Error al recargar datos:', err);
+    }
+  }, []);
+
+  const cargarDatosIniciales = useCallback(async () => {
+    try {
+      setLoading(true);
+      await recargarDatosSilenciosamente();
+    } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }, [recargarDatosSilenciosamente]);
+
+  useEffect(() => {
+    const empresaId = 1;
+    if (isConnected) {
+      joinEmpresa(empresaId);
+    }
+  }, [isConnected, joinEmpresa]);
+
+  useEffect(() => {
+    const unsubscribe = onCitaActualizada((data) => {
+      console.log('📢 Cita actualizada en tiempo real:', data);
+      recargarDatosSilenciosamente();
+    });
+    return unsubscribe;
+  }, [onCitaActualizada, recargarDatosSilenciosamente]);
+
+  useEffect(() => {
+    cargarDatosIniciales();
+  }, [cargarDatosIniciales]);
+
+  // 🔥 FUNCIÓN PARA FORMATEAR TELÉFONO (cambiar +593 por 0)
+  const formatearTelefono = (telefono) => {
+    if (!telefono) return '—';
+    if (telefono.startsWith('+593')) {
+      return '0' + telefono.slice(4);
+    }
+    return telefono;
   };
 
   if (loading) {
     return (
       <div className="dashboard-container">
-        <h1>📊 Dashboard</h1>
         <div className="dashboard-loading">
           <div className="spinner"></div>
           <p>Cargando estadísticas...</p>
@@ -60,16 +93,14 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="dashboard-container">
-        <h1>📊 Dashboard</h1>
         <div className="dashboard-error">
           <p>Error: {error}</p>
-          <button onClick={cargarDatos} className="retry-btn">Reintentar</button>
+          <button onClick={cargarDatosIniciales} className="retry-btn">Reintentar</button>
         </div>
       </div>
     );
   }
 
-  // Generar días laborables (lunes a viernes) de los próximos 7 días
   const diasLaborables = [];
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -78,7 +109,6 @@ export default function Dashboard() {
     const fecha = new Date();
     fecha.setDate(hoy.getDate() + i);
     const diaSemana = fecha.getDay();
-    // Solo lunes (1) a viernes (5)
     if (diaSemana >= 1 && diaSemana <= 5) {
       diasLaborables.push({
         fecha: fecha,
@@ -89,7 +119,6 @@ export default function Dashboard() {
     if (diasLaborables.length === 5) break;
   }
 
-  // Verificar si una cita existe en una fecha y hora específica
   const existeCita = (fechaStr, hora) => {
     return citasProximas.some(cita => {
       const fechaCita = new Date(cita.start_time);
@@ -101,9 +130,10 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
+      <div className="socket-status" style={{ textAlign: 'right', fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444', marginBottom: '10px' }}>
+        {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+      </div>
 
-      
-      {/* KPIs */}
       <div className="dashboard-kpis">
         <div className="kpi-card">
           <div className="kpi-icon total">📅</div>
@@ -138,9 +168,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Calendario Semanal y Ocupación */}
       <div className="dashboard-graficas">
-        {/* Calendario Semanal de Horarios - Solo días laborables */}
         <div className="grafica-card calendario-card">
           <h3>📅 Calendario Semanal (Lunes a Viernes - 9:00 a 17:00)</h3>
           <div className="calendario-semanal">
@@ -176,28 +204,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Gráfico de anillo para ocupación */}
         <div className="grafica-card">
           <h3>📊 Ocupación (Próximos 7 días laborables)</h3>
           <div className="porcentaje-container">
-            <svg width="100%" height="auto" viewBox="0 0 60 60" style={{ maxWidth: '260px' }}>
-                <circle cx="30" cy="30" r="26" fill="none" stroke="#2a2a30" strokeWidth="5" />
-                <circle 
-                    cx="30" 
-                    cy="30" 
-                    r="26" 
-                    fill="none" 
-                    stroke="#3b82f6" 
-                    strokeWidth="5" 
-                    strokeDasharray={`${stats?.porcentaje_ocupacion || 0} ${100 - (stats?.porcentaje_ocupacion || 0)}`}
-                    strokeDashoffset="0"
-                    transform="rotate(-90 30 30)"
-                    strokeLinecap="round"
-                />
-                <text x="30" y="36" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="bold">
-                    {stats?.porcentaje_ocupacion || 0}%
-                </text>
-                </svg>
+            <svg width="100%" height="100%" viewBox="0 0 60 60" style={{ maxWidth: '260px' }}>
+              <circle cx="30" cy="30" r="26" fill="none" stroke="#2a2a30" strokeWidth="5" />
+              <circle 
+                cx="30" 
+                cy="30" 
+                r="26" 
+                fill="none" 
+                stroke="#3b82f6" 
+                strokeWidth="5" 
+                strokeDasharray={`${stats?.porcentaje_ocupacion || 0} ${100 - (stats?.porcentaje_ocupacion || 0)}`}
+                strokeDashoffset="0"
+                transform="rotate(-90 30 30)"
+                strokeLinecap="round"
+              />
+              <text x="30" y="36" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="bold">
+                {stats?.porcentaje_ocupacion || 0}%
+              </text>
+            </svg>
             <div className="porcentaje-info">
               <span className="porcentaje-label">Ocupación</span>
               <span className="porcentaje-detalle">{stats?.citas_proximas || 0} de {stats?.total_slots || 0} slots ocupados</span>
@@ -206,7 +233,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Próximas citas - Tabla */}
+      {/* Próximas citas - Tabla con nuevas columnas */}
       <div className="dashboard-recientes">
         <h3>📋 Próximas Citas</h3>
         {citasProximas.length === 0 ? (
@@ -218,6 +245,8 @@ export default function Dashboard() {
                 <tr>
                   <th>Paciente</th>
                   <th>Email</th>
+                  <th>Cédula</th>
+                  <th>Teléfono</th>
                   <th>Fecha</th>
                   <th>Hora</th>
                   <th>Estado</th>
@@ -228,6 +257,8 @@ export default function Dashboard() {
                   <tr key={cita.uid}>
                     <td className="paciente-nombre">{cita.cliente_nombre || 'No especificado'}</td>
                     <td>{cita.cliente_email || 'No especificado'}</td>
+                    <td>{cita.cedula || '—'}</td>
+                    <td>{formatearTelefono(cita.telefono)}</td>  {/* 🔥 TELÉFONO FORMATEADO */}
                     <td>{new Date(cita.start_time).toLocaleDateString('es-EC')}</td>
                     <td>{new Date(cita.start_time).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</td>
                     <td><span className="status-confirmada">Confirmada</span></td>

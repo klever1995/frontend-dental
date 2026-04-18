@@ -143,7 +143,7 @@
   flex-shrink: 0;
 }
 
-/* Calendario Semanal - Sin scroll horizontal */
+/* Calendario Semanal */
 .calendario-semanal {
   overflow-x: visible;
   flex: 1;
@@ -287,7 +287,7 @@
   font-size: 14px;
 }
 
-/* Tabla de citas próximas */
+/* Tabla de citas próximas (con más columnas) */
 .dashboard-recientes {
   background: #111216;
   border: 1px solid #2a2a30;
@@ -317,7 +317,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 500px;
+  min-width: 700px; /* Aumentado para que quepan cédula y teléfono */
 }
 
 .tabla-citas th {
@@ -395,6 +395,10 @@
     padding: 8px 4px;
     font-size: 10px;
   }
+  
+  .tabla-citas {
+    min-width: 600px; /* Ajuste para tablets */
+  }
 }
 
 @media (max-width: 768px) {
@@ -423,5 +427,9 @@
   
   .leyenda {
     gap: 12px;
+  }
+  
+  .tabla-citas {
+    min-width: 500px; /* Para móviles, scroll horizontal */
   }
 }
