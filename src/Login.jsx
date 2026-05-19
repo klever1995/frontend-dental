@@ -26,32 +26,58 @@ function Login() {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h2>Iniciar Sesión</h2>
-        {error && <p className="error-message">{error}</p>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Email:</label>
+    <div className="login-page">
+      {/* IZQUIERDA - BRANDING */}
+      <div className="login-branding">
+        {/* Watermark como imagen en lugar de CSS */}
+        <img src="/Logo-Letra.png" alt="" className="login-branding__watermark" />
+        
+        <div className="login-branding__content">
+          <img src="/Logo.png" alt="Aurelia" className="login-branding__logo" />
+          <p className="login-branding__subtitle">
+            Gestiona tus citas de manera inteligente: agenda, reagenda o cancela en segundos con nuestro asistente virtual disponible 24/7 para tu negocio.
+          </p>
+        </div>
+
+        <div className="login-branding__orb login-branding__orb--1" />
+        <div className="login-branding__orb login-branding__orb--2" />
+      </div>
+
+      {/* DERECHA - FORMULARIO */}
+      <div className="login-form-side">
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="login-form__header">
+            <h2>Iniciar Sesión</h2>
+            <p>Ingresa tus credenciales</p>
+          </div>
+
+          {error && <div className="login-error">{error}</div>}
+
+          <div className="login-form__field">
+            <label>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              placeholder="correo@ejemplo.com"
               disabled={loading}
             />
           </div>
-          <div className="form-group">
-            <label>Contraseña:</label>
+
+          <div className="login-form__field">
+            <label>Contraseña</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              placeholder="••••••••"
               disabled={loading}
             />
           </div>
-          <button type="submit" disabled={loading}>
+
+          <button className="login-btn" type="submit" disabled={loading}>
             {loading ? 'Iniciando...' : 'Ingresar'}
           </button>
         </form>

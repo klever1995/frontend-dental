@@ -10,6 +10,10 @@ export default function Clientes() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [buscado, setBuscado] = useState(false);
+  
+  // 🔥 ESTADO PARA MODAL DE MOTIVO
+  const [showMotivoModal, setShowMotivoModal] = useState(false);
+  const [motivoSeleccionado, setMotivoSeleccionado] = useState('');
 
   const handleBuscar = async () => {
     if (!cedula.trim()) {
@@ -56,21 +60,20 @@ export default function Clientes() {
     return telefono;
   };
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      'accepted': { text: 'Confirmada', className: 'status-confirmada' },
-      'cancelled': { text: 'Cancelada', className: 'status-cancelada' },
-      'pending': { text: 'Pendiente', className: 'status-pendiente' }
-    };
-    const s = statusMap[status.toLowerCase()] || { text: status, className: '' };
-    return <span className={`status-badge ${s.className}`}>{s.text}</span>;
+  const verMotivo = (notas) => {
+    if (!notas || notas === '—') {
+      alert('No hay motivo registrado para esta cita.');
+      return;
+    }
+    setMotivoSeleccionado(notas);
+    setShowMotivoModal(true);
   };
 
   return (
     <div className="clientes-page">
       <h1 className="titulo">Historial de Citas</h1>
       
-      {/* Filtros - Mismo diseño del ejemplo */}
+      {/* Filtros */}
       <div className="filtro-card">
         <div className="filtro-row">
           <div className="input-group">
@@ -129,7 +132,7 @@ export default function Clientes() {
                     <th>Teléfono</th>
                     <th>Fecha</th>
                     <th>Hora</th>
-                    <th>Estado</th>
+                    <th>Motivo de la cita</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -141,13 +144,39 @@ export default function Clientes() {
                       <td>{formatearTelefono(cita.telefono)}</td>
                       <td>{formatearFecha(cita.start_time)}</td>
                       <td>{formatearHora(cita.start_time)}</td>
-                      <td>{getStatusBadge(cita.status)}</td>
+                      <td>
+                        {cita.notas ? (
+                          <button 
+                            className="btn-ver-motivo"
+                            onClick={() => verMotivo(cita.notas)}
+                          >
+                            Ver
+                          </button>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal para mostrar motivo de la cita */}
+      {showMotivoModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Motivo de la cita</h2>
+            <p>{motivoSeleccionado}</p>
+            <div className="modal-buttons">
+              <button onClick={() => setShowMotivoModal(false)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

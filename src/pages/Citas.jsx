@@ -15,9 +15,11 @@ export default function Citas() {
   const [nuevaHora, setNuevaHora] = useState('');
   const [accionLoading, setAccionLoading] = useState(false);
 
+  const [showMotivoModal, setShowMotivoModal] = useState(false);
+  const [motivoSeleccionado, setMotivoSeleccionado] = useState('');
+
   const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
 
-  // 🔥 Función para recargar citas silenciosamente (sin loading)
   const recargarCitasSilenciosamente = useCallback(async () => {
     try {
       const data = await obtenerCitas();
@@ -29,7 +31,6 @@ export default function Citas() {
     }
   }, []);
 
-  // 🔥 Función para carga inicial (con loading)
   const cargarCitasIniciales = useCallback(async () => {
     try {
       setLoading(true);
@@ -48,34 +49,29 @@ export default function Citas() {
     }
   }, [isConnected, joinEmpresa]);
 
-  // Escuchar evento de cita actualizada (actualización silenciosa)
   useEffect(() => {
     const unsubscribe = onCitaActualizada((data) => {
       console.log('📢 Cita actualizada en tiempo real (Citas):', data);
-      recargarCitasSilenciosamente(); // 🔥 Usa recarga silenciosa, no cargarCitas()
+      recargarCitasSilenciosamente();
     });
     return unsubscribe;
   }, [onCitaActualizada, recargarCitasSilenciosamente]);
 
   const formatFecha = (fechaISO) => {
     const fecha = new Date(fechaISO);
-    return fecha.toLocaleString('es-ES', {
+    return fecha.toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric'
     });
   };
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      'ACCEPTED': { text: 'Confirmada', className: 'status-confirmada' },
-      'CANCELLED': { text: 'Cancelada', className: 'status-cancelada' },
-      'PENDING': { text: 'Pendiente', className: 'status-pendiente' }
-    };
-    const s = statusMap[status] || { text: status, className: '' };
-    return <span className={`status-badge ${s.className}`}>{s.text}</span>;
+  const formatHora = (fechaISO) => {
+    const fecha = new Date(fechaISO);
+    return fecha.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const formatearTelefono = (telefono) => {
@@ -97,14 +93,14 @@ export default function Citas() {
       return;
     }
     
-    if (!window.confirm(`¿Cancelar cita de ${cita.cliente_nombre} el ${formatFecha(cita.start_time)}?`)) {
+    if (!window.confirm(`¿Cancelar cita de ${cita.cliente_nombre} el ${formatFecha(cita.start_time)} a las ${formatHora(cita.start_time)}?`)) {
       return;
     }
     
     try {
       setAccionLoading(true);
       await cancelarCita(cita.uid);
-      await recargarCitasSilenciosamente(); // 🔥 Recarga silenciosa después de cancelar
+      await recargarCitasSilenciosamente();
       alert('Cita cancelada exitosamente');
     } catch (err) {
       alert('Error al cancelar: ' + err.message);
@@ -144,7 +140,7 @@ export default function Citas() {
         selectedCita.telefono
       );
       setShowModal(false);
-      await recargarCitasSilenciosamente(); // 🔥 Recarga silenciosa después de reagendar
+      await recargarCitasSilenciosamente();
       alert('Cita reagendada exitosamente');
     } catch (err) {
       alert('Error al reagendar: ' + err.message);
@@ -153,7 +149,15 @@ export default function Citas() {
     }
   };
 
-  // Carga inicial
+  const verMotivo = (notas) => {
+    if (!notas || notas === '—') {
+      alert('No hay motivo registrado para esta cita.');
+      return;
+    }
+    setMotivoSeleccionado(notas);
+    setShowMotivoModal(true);
+  };
+
   useEffect(() => {
     cargarCitasIniciales();
   }, [cargarCitasIniciales]);
@@ -210,8 +214,9 @@ export default function Citas() {
                 <th>Email</th>
                 <th>Cédula</th>
                 <th>Teléfono</th>
-                <th>Fecha y Hora</th>
-                <th>Estado</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Motivo de la cita</th>
               </tr>
             </thead>
             <tbody>
@@ -231,7 +236,19 @@ export default function Citas() {
                   <td>{cita.cedula || '—'}</td>
                   <td>{formatearTelefono(cita.telefono)}</td>
                   <td>{formatFecha(cita.start_time)}</td>
-                  <td>{getStatusBadge(cita.status)}</td>
+                  <td>{formatHora(cita.start_time)}</td>
+                  <td>
+                    {cita.notas ? (
+                      <button 
+                        className="btn-ver-motivo"
+                        onClick={() => verMotivo(cita.notas)}
+                      >
+                        Ver
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -266,6 +283,20 @@ export default function Citas() {
               </button>
               <button onClick={() => setShowModal(false)} disabled={accionLoading}>
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMotivoModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Motivo de la cita</h2>
+            <p>{motivoSeleccionado}</p>
+            <div className="modal-buttons">
+              <button onClick={() => setShowMotivoModal(false)}>
+                Cerrar
               </button>
             </div>
           </div>

@@ -253,108 +253,54 @@
   font-size: 14px;
 }
 
-/* Gráfico de anillo */
-.porcentaje-container {
+/* Lista de próximas citas */
+.lista-proximas-citas {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  gap: 20px;
-  padding: 20px;
+  gap: 16px;
 }
 
-.porcentaje-container svg {
-  width: 100%;
-  max-width: 280px;
-  height: auto;
+.cita-item {
+  background: #0B1120;
+  border: 1px solid #2a2a30;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.2s;
 }
 
-.porcentaje-info {
-  text-align: center;
+.cita-item:hover {
+  border-color: #3b82f6;
+  transform: translateY(-2px);
 }
 
-.porcentaje-label {
-  display: block;
+.cita-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cita-info strong {
   color: #ffffff;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.porcentaje-detalle {
-  color: #9aa0b0;
   font-size: 14px;
 }
 
-/* Tabla de citas próximas (con más columnas) */
-.dashboard-recientes {
-  background: #111216;
-  border: 1px solid #2a2a30;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
+.cita-info span {
+  color: #9aa0b0;
+  font-size: 12px;
 }
 
-.dashboard-recientes h3 {
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 500;
-  margin-bottom: 16px;
+.cita-notas {
+  color: #10b981;
+  font-size: 11px;
+  margin-top: 4px;
+  border-top: 1px solid #2a2a30;
+  padding-top: 6px;
 }
 
 .no-citas {
-  color: #6b7280;
   text-align: center;
   padding: 40px;
-}
-
-.tabla-wrapper {
-  overflow-x: auto;
-}
-
-.tabla-citas {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  min-width: 700px; /* Aumentado para que quepan cédula y teléfono */
-}
-
-.tabla-citas th {
-  text-align: left;
-  padding: 12px 8px;
   color: #9aa0b0;
-  font-weight: 500;
-  border-bottom: 1px solid #2a2a30;
-}
-
-.tabla-citas td {
-  padding: 12px 8px;
-  color: #e0e2e8;
-  border-bottom: 1px solid #2a2a30;
-}
-
-.tabla-citas tr:last-child td {
-  border-bottom: none;
-}
-
-.tabla-citas tr:hover {
-  background: #1a1c24;
-}
-
-.paciente-nombre {
-  color: #ffffff;
-  font-weight: 500;
-}
-
-.status-confirmada {
-  display: inline-block;
-  padding: 4px 8px;
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
 }
 
 /* Footer */
@@ -395,10 +341,6 @@
     padding: 8px 4px;
     font-size: 10px;
   }
-  
-  .tabla-citas {
-    min-width: 600px; /* Ajuste para tablets */
-  }
 }
 
 @media (max-width: 768px) {
@@ -429,7 +371,65 @@
     gap: 12px;
   }
   
-  .tabla-citas {
-    min-width: 500px; /* Para móviles, scroll horizontal */
+  .lista-proximas-citas {
+    gap: 12px;
   }
+  
+  .cita-item {
+    padding: 10px;
+  }
+}
+
+
+
+
+/* Navegación del calendario */
+.calendario-header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.nav-semana-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #7C3AED, #4C1D95);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-semana-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.nav-semana-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.rango-semana {
+  background: rgba(124, 58, 237, 0.1);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+.rango-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #7C3AED;
 }

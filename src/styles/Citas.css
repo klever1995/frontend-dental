@@ -52,6 +52,36 @@
   cursor: not-allowed;
 }
 
+/* 🔥 Botón Ver motivo */
+.btn-ver-motivo {
+  background: transparent;
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  display: inline-block;
+  width: auto;
+}
+
+.btn-ver-motivo:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+/* 🔥 Centrar solo la columna "Motivo de la cita" (octava columna) */
+.citas-table td:nth-child(8),
+.citas-table th:nth-child(8) {
+  text-align: center;
+}
+
+/* 🔥 Asegurar que la columna "Hora" (séptima) esté alineada a la izquierda */
+.citas-table td:nth-child(7) {
+  text-align: left;
+}
+
 .loading, .error-message, .no-citas {
   text-align: center;
   padding: 40px;
@@ -90,7 +120,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 700px; /* Aumentado para que quepan las columnas adicionales */
+  min-width: 700px;
 }
 
 .citas-table th,
@@ -131,29 +161,6 @@
   accent-color: #3b82f6;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-confirmada {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.status-cancelada {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.status-pendiente {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-}
-
 /* Modal styles */
 .modal-overlay {
   position: fixed;
@@ -187,6 +194,8 @@
 .modal p {
   color: #9aa0b0;
   margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .modal .form-group {
@@ -273,7 +282,7 @@
   }
   
   .citas-table {
-    min-width: 600px; /* Ajuste para móviles (scroll horizontal) */
+    min-width: 600px;
   }
   
   .citas-table th,

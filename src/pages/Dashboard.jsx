@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [citasProximas, setCitasProximas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [semanaOffset, setSemanaOffset] = useState(0);
   
   const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
 
@@ -70,13 +71,29 @@ export default function Dashboard() {
     cargarDatosIniciales();
   }, [cargarDatosIniciales]);
 
-  // 🔥 FUNCIÓN PARA FORMATEAR TELÉFONO (cambiar +593 por 0)
-  const formatearTelefono = (telefono) => {
-    if (!telefono) return '—';
-    if (telefono.startsWith('+593')) {
-      return '0' + telefono.slice(4);
-    }
-    return telefono;
+  const obtenerLunesDeSemana = (offset) => {
+    const hoy = new Date();
+    const diaActual = hoy.getDay();
+    const diasHastaLunes = (diaActual === 0 ? 6 : diaActual - 1);
+    const lunesActual = new Date(hoy);
+    lunesActual.setDate(hoy.getDate() - diasHastaLunes);
+    lunesActual.setHours(0, 0, 0, 0);
+    const lunesObjetivo = new Date(lunesActual);
+    lunesObjetivo.setDate(lunesActual.getDate() + (offset * 7));
+    return lunesObjetivo;
+  };
+
+  const irSiguienteSemana = () => setSemanaOffset(prev => prev + 1);
+  const irSemanaActual = () => setSemanaOffset(0);
+  const esSemanaActual = semanaOffset === 0;
+
+  const obtenerRangoSemana = () => {
+    const lunes = obtenerLunesDeSemana(semanaOffset);
+    const viernes = new Date(lunes);
+    viernes.setDate(lunes.getDate() + 4);
+    const inicio = lunes.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+    const fin = viernes.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+    return `${inicio} - ${fin}`;
   };
 
   if (loading) {
@@ -101,22 +118,16 @@ export default function Dashboard() {
     );
   }
 
+  const lunesSemana = obtenerLunesDeSemana(semanaOffset);
   const diasLaborables = [];
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  
-  for (let i = 0; i < 14; i++) {
-    const fecha = new Date();
-    fecha.setDate(hoy.getDate() + i);
-    const diaSemana = fecha.getDay();
-    if (diaSemana >= 1 && diaSemana <= 5) {
-      diasLaborables.push({
-        fecha: fecha,
-        fechaStr: fecha.toISOString().split('T')[0],
-        nombre: fecha.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })
-      });
-    }
-    if (diasLaborables.length === 5) break;
+  for (let i = 0; i < 5; i++) {
+    const fecha = new Date(lunesSemana);
+    fecha.setDate(lunesSemana.getDate() + i);
+    diasLaborables.push({
+      fecha: fecha,
+      fechaStr: fecha.toISOString().split('T')[0],
+      nombre: fecha.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })
+    });
   }
 
   const existeCita = (fechaStr, hora) => {
@@ -170,6 +181,20 @@ export default function Dashboard() {
 
       <div className="dashboard-graficas">
         <div className="grafica-card calendario-card">
+          <div className="calendario-header-nav">
+            <div className="nav-buttons">
+              <button className="nav-semana-btn" onClick={irSemanaActual} disabled={esSemanaActual}>
+                📍 Semana Actual
+              </button>
+              <button className="nav-semana-btn" onClick={irSiguienteSemana}>
+                Semana Siguiente →
+              </button>
+            </div>
+            <div className="rango-semana">
+              <span className="rango-label">Semana: {obtenerRangoSemana()}</span>
+            </div>
+          </div>
+          
           <h3>📅 Calendario Semanal (Lunes a Viernes - 9:00 a 17:00)</h3>
           <div className="calendario-semanal">
             <div className="calendario-header">
@@ -205,69 +230,23 @@ export default function Dashboard() {
         </div>
 
         <div className="grafica-card">
-          <h3>📊 Ocupación (Próximos 7 días laborables)</h3>
-          <div className="porcentaje-container">
-            <svg width="100%" height="100%" viewBox="0 0 60 60" style={{ maxWidth: '260px' }}>
-              <circle cx="30" cy="30" r="26" fill="none" stroke="#2a2a30" strokeWidth="5" />
-              <circle 
-                cx="30" 
-                cy="30" 
-                r="26" 
-                fill="none" 
-                stroke="#3b82f6" 
-                strokeWidth="5" 
-                strokeDasharray={`${stats?.porcentaje_ocupacion || 0} ${100 - (stats?.porcentaje_ocupacion || 0)}`}
-                strokeDashoffset="0"
-                transform="rotate(-90 30 30)"
-                strokeLinecap="round"
-              />
-              <text x="30" y="36" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="bold">
-                {stats?.porcentaje_ocupacion || 0}%
-              </text>
-            </svg>
-            <div className="porcentaje-info">
-              <span className="porcentaje-label">Ocupación</span>
-              <span className="porcentaje-detalle">{stats?.citas_proximas || 0} de {stats?.total_slots || 0} slots ocupados</span>
+          <h3>📋 Próximas Citas</h3>
+          {citasProximas.length === 0 ? (
+            <p className="no-citas">No hay citas próximas en los siguientes 7 días.</p>
+          ) : (
+            <div className="lista-proximas-citas">
+              {citasProximas.slice(0, 5).map((cita) => (
+                <div key={cita.uid} className="cita-item">
+                  <div className="cita-info">
+                    <strong>{cita.cliente_nombre || 'Paciente'}</strong>
+                    <span>{new Date(cita.start_time).toLocaleDateString('es-EC')} - {new Date(cita.start_time).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</span>
+                    {cita.notas && <span className="cita-notas">{cita.notas.length > 60 ? cita.notas.substring(0, 60) + '…' : cita.notas}</span>}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
-      </div>
-
-      {/* Próximas citas - Tabla con nuevas columnas */}
-      <div className="dashboard-recientes">
-        <h3>📋 Próximas Citas</h3>
-        {citasProximas.length === 0 ? (
-          <p className="no-citas">No hay citas próximas en los siguientes 7 días.</p>
-        ) : (
-          <div className="tabla-wrapper">
-            <table className="tabla-citas">
-              <thead>
-                <tr>
-                  <th>Paciente</th>
-                  <th>Email</th>
-                  <th>Cédula</th>
-                  <th>Teléfono</th>
-                  <th>Fecha</th>
-                  <th>Hora</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {citasProximas.map((cita) => (
-                  <tr key={cita.uid}>
-                    <td className="paciente-nombre">{cita.cliente_nombre || 'No especificado'}</td>
-                    <td>{cita.cliente_email || 'No especificado'}</td>
-                    <td>{cita.cedula || '—'}</td>
-                    <td>{formatearTelefono(cita.telefono)}</td>  {/* 🔥 TELÉFONO FORMATEADO */}
-                    <td>{new Date(cita.start_time).toLocaleDateString('es-EC')}</td>
-                    <td>{new Date(cita.start_time).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td><span className="status-confirmada">Confirmada</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       <div className="dashboard-footer">
