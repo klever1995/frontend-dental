@@ -51,6 +51,14 @@ export function getRolFromToken() {
   return decoded?.rol || null;
 }
 
+// 🔥 NUEVO: Obtener especialidad_id del token actual (para doctores)
+export function getEspecialidadIdFromToken() {
+  const token = getToken();
+  if (!token) return null;
+  const decoded = decodeToken(token);
+  return decoded?.especialidad_id || null;
+}
+
 // Obtener teléfono de la empresa del token actual
 export function getEmpresaTelefonoFromToken() {
   const token = getToken();
@@ -92,7 +100,7 @@ export async function login(credentials) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'ngrok-skip-browser-warning': 'true'  // 🔥 Agregado
+      'ngrok-skip-browser-warning': 'true'
     },
     body: formData,
   });

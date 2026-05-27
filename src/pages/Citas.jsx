@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { obtenerCitas, cancelarCita, reagendarCita } from '../services/calcom';
+import { obtenerCitas, cancelarCita, reagendarCita, obtenerEspecialidades } from '../services/calcom';
+import { getRolFromToken } from '../services/auth';
 import { useSocket } from '../hooks/useSocket';
 import '../styles/Citas.css';
 
@@ -8,28 +9,38 @@ export default function Citas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [citaSeleccionadaId, setCitaSeleccionadaId] = useState(null);
-  
   const [showModal, setShowModal] = useState(false);
   const [selectedCita, setSelectedCita] = useState(null);
   const [nuevaFecha, setNuevaFecha] = useState('');
   const [nuevaHora, setNuevaHora] = useState('');
   const [accionLoading, setAccionLoading] = useState(false);
-
   const [showMotivoModal, setShowMotivoModal] = useState(false);
   const [motivoSeleccionado, setMotivoSeleccionado] = useState('');
+  
+  // Estados para filtro de especialidad
+  const [especialidadesList, setEspecialidadesList] = useState([]);
+  const [especialidadSeleccionada, setEspecialidadSeleccionada] = useState(null);
+  
+  const userRol = getRolFromToken();
+  const isAdmin = userRol === 'admin';
+  
+  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket(); // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
 
-  const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
-
+  // Recargar citas con filtro de especialidad
   const recargarCitasSilenciosamente = useCallback(async () => {
+    if (isAdmin && !especialidadSeleccionada) return;
     try {
-      const data = await obtenerCitas();
-      setCitas(data);
+      const data = await obtenerCitas(especialidadSeleccionada);
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const citasFuturas = data.filter(cita => new Date(cita.start_time) >= hoy);
+      setCitas(citasFuturas);
       setError('');
       setCitaSeleccionadaId(null);
     } catch (err) {
       console.error('Error al recargar citas:', err);
     }
-  }, []);
+  }, [especialidadSeleccionada, isAdmin]);
 
   const cargarCitasIniciales = useCallback(async () => {
     try {
@@ -42,6 +53,25 @@ export default function Citas() {
     }
   }, [recargarCitasSilenciosamente]);
 
+  // Cargar especialidades si es admin
+  useEffect(() => {
+    if (isAdmin) {
+      obtenerEspecialidades()
+        .then(data => {
+          setEspecialidadesList(data);
+          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [isAdmin]);
+
+  // Recargar cuando cambie la especialidad
+  useEffect(() => {
+    if (!isAdmin || especialidadSeleccionada) {
+      cargarCitasIniciales();
+    }
+  }, [especialidadSeleccionada, isAdmin, cargarCitasIniciales]);
+
   useEffect(() => {
     const empresaId = 1;
     if (isConnected) {
@@ -49,13 +79,14 @@ export default function Citas() {
     }
   }, [isConnected, joinEmpresa]);
 
+  // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
   useEffect(() => {
-    const unsubscribe = onCitaActualizada((data) => {
+    const unsubscribe = onCitasActualizadas((data) => {
       console.log('📢 Cita actualizada en tiempo real (Citas):', data);
       recargarCitasSilenciosamente();
     });
     return unsubscribe;
-  }, [onCitaActualizada, recargarCitasSilenciosamente]);
+  }, [onCitasActualizadas, recargarCitasSilenciosamente]);
 
   const formatFecha = (fechaISO) => {
     const fecha = new Date(fechaISO);
@@ -99,7 +130,7 @@ export default function Citas() {
     
     try {
       setAccionLoading(true);
-      await cancelarCita(cita.uid);
+      await cancelarCita(cita.uid, cita.calendar_id);
       await recargarCitasSilenciosamente();
       alert('Cita cancelada exitosamente');
     } catch (err) {
@@ -133,11 +164,14 @@ export default function Citas() {
       setAccionLoading(true);
       await reagendarCita(
         selectedCita.uid,
+        selectedCita.calendar_id,
         nuevaFecha,
         nuevaHora,
         selectedCita.cliente_nombre,
         selectedCita.cliente_email,
-        selectedCita.telefono
+        selectedCita.telefono,
+        selectedCita.cedula,
+        selectedCita.notas
       );
       setShowModal(false);
       await recargarCitasSilenciosamente();
@@ -158,10 +192,6 @@ export default function Citas() {
     setShowMotivoModal(true);
   };
 
-  useEffect(() => {
-    cargarCitasIniciales();
-  }, [cargarCitasIniciales]);
-
   if (loading) {
     return (
       <div className="citas-container">
@@ -181,8 +211,24 @@ export default function Citas() {
 
   return (
     <div className="citas-container">
-      <div className="socket-status" style={{ textAlign: 'right', fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444', marginBottom: '10px' }}>
-        {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        {isAdmin && especialidadesList.length > 0 && (
+          <div className="citas-filtro-especialidad">
+            <label htmlFor="citas-especialidad-select">Filtrar por especialidad:</label>
+            <select
+              id="citas-especialidad-select"
+              value={especialidadSeleccionada || ''}
+              onChange={(e) => setEspecialidadSeleccionada(parseInt(e.target.value))}
+            >
+              {especialidadesList.map(esp => (
+                <option key={esp.id} value={esp.id}>🩺 {esp.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="socket-status" style={{ fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444' }}>
+          {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+        </div>
       </div>
 
       <div className="citas-acciones">

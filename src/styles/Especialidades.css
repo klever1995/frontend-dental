@@ -1,0 +1,330 @@
+/* Contenedor principal */
+.especialidades-container {
+  padding: 24px;
+  background-color: #0B1120;
+  min-height: 100vh;
+}
+
+/* Encabezado */
+.especialidades-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.especialidades-header h1 {
+  color: #ffffff;
+  font-size: 24px;
+  margin: 0;
+}
+
+/* Botón crear */
+.btn-crear {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-crear:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Tabla */
+.especialidades-table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #2a2a30;
+  background: #111216;
+}
+
+.especialidades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 600px;
+}
+
+/* 🔥 Distribución de columnas */
+.especialidades-table th:nth-child(1) { width: 60px; }  /* ID */
+.especialidades-table th:nth-child(2) { width: 160px; } /* Nombre */
+.especialidades-table th:nth-child(3) { width: auto; }   /* Descripción */
+.especialidades-table th:nth-child(4) { width: 100px; }  /* Estado */
+.especialidades-table th:nth-child(5) { width: 180px; }  /* Acciones */
+
+.especialidades-table th,
+.especialidades-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #2a2a30;
+}
+
+.especialidades-table th {
+  background-color: #0B1120;
+  font-weight: 600;
+  color: #9aa0b0;
+  font-size: 13px;
+}
+
+.especialidades-table tbody tr:hover {
+  background-color: #1a1c24;
+}
+
+.especialidades-table td {
+  color: #e0e2e8;
+}
+
+/* Estado badge */
+.estado-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.estado-badge.activa {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.estado-badge.inactiva {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Botones de acciones */
+.acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.acciones button {
+  background: transparent;
+  border: 1px solid #2a2a30;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  color: #e0e2e8;
+  white-space: nowrap;
+}
+
+.acciones button:hover {
+  background: #2a2a30;
+}
+
+.btn-editar:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.btn-toggle:hover {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.btn-eliminar:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.especialidades-modal {
+  background: #111216;
+  padding: 24px;
+  border-radius: 12px;
+  width: 500px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  border: 1px solid #2a2a30;
+  box-sizing: border-box;
+}
+
+.especialidades-modal h2 {
+  color: #ffffff;
+  font-size: 22px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #2a2a30;
+  padding-bottom: 10px;
+}
+
+.especialidades-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.especialidades-modal .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #9aa0b0;
+  font-size: 13px;
+}
+
+.especialidades-modal .form-group input,
+.especialidades-modal .form-group textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: #0B1120;
+  border: 1px solid #2a2a30;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.especialidades-modal .form-group input:focus,
+.especialidades-modal .form-group textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.especialidades-modal .form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.especialidades-modal .checkbox {
+  margin-top: 8px;
+}
+
+.especialidades-modal .checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.especialidades-modal .checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+.modal-buttons button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.modal-buttons button:first-child {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.modal-buttons button:first-child:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.modal-buttons button:last-child {
+  background-color: #2a2a30;
+  color: #9aa0b0;
+}
+
+.modal-buttons button:last-child:hover:not(:disabled) {
+  background-color: #3a3a45;
+  color: #ffffff;
+}
+
+.modal-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading y error */
+.loading, .error-message {
+  text-align: center;
+  padding: 40px;
+  color: #9aa0b0;
+  background: #111216;
+  border-radius: 12px;
+  border: 1px solid #2a2a30;
+}
+
+.error-message {
+  color: #ef4444;
+}
+
+.retry-btn {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.retry-btn:hover {
+  background-color: #2563eb;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .especialidades-container {
+    padding: 16px;
+  }
+  
+  .especialidades-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .btn-crear {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .acciones {
+    flex-direction: column;
+  }
+  
+  .acciones button {
+    width: 100%;
+  }
+  
+  .especialidades-modal {
+    width: 95vw;
+    padding: 20px;
+  }
+}

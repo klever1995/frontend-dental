@@ -256,3 +256,32 @@
     font-size: 12px;
   }
 }
+
+
+
+
+/* Filtro de especialidad para historial */
+.clientes-filtro-especialidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.clientes-filtro-especialidad label {
+  color: #9aa0b0;
+  font-size: 13px;
+}
+
+.clientes-filtro-especialidad select {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clientes-filtro-especialidad select:hover {
+  border-color: #3b82f6;
+}

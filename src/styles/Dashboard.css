@@ -381,8 +381,6 @@
 }
 
 
-
-
 /* Navegación del calendario */
 .calendario-header-nav {
   display: flex;
@@ -432,4 +430,32 @@
   font-size: 14px;
   font-weight: 500;
   color: #7C3AED;
+}
+
+
+
+/* Filtro de especialidad */
+.dashboard-filtro-especialidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-filtro-especialidad label {
+  color: #9aa0b0;
+  font-size: 13px;
+}
+
+.dashboard-filtro-especialidad select {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dashboard-filtro-especialidad select:hover {
+  border-color: #3b82f6;
 }

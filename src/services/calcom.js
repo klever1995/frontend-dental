@@ -12,9 +12,14 @@ function getAuthHeaders() {
   };
 }
 
-// Obtener todas las citas
-export async function obtenerCitas() {
-  const response = await fetch(`${API_URL}/api/v1/citas/`, {
+// Obtener todas las citas (con filtro opcional por especialidad)
+export async function obtenerCitas(especialidadId = null) {
+  let url = `${API_URL}/api/v1/citas/`;
+  if (especialidadId) {
+    url += `?especialidad_id=${especialidadId}`;
+  }
+  
+  const response = await fetch(url, {
     headers: getAuthHeaders()
   });
   
@@ -25,9 +30,9 @@ export async function obtenerCitas() {
   return response.json();
 }
 
-// Consultar slots disponibles
-export async function consultarSlots(fechaInicio = null, diasMostrar = 5) {
-  let url = `${API_URL}/api/v1/citas/slots?dias_a_mostrar=${diasMostrar}`;
+// Consultar slots disponibles para una especialidad específica
+export async function consultarSlots(especialidad, fechaInicio = null, diasMostrar = 5) {
+  let url = `${API_URL}/api/v1/citas/slots?especialidad=${encodeURIComponent(especialidad)}&dias_a_mostrar=${diasMostrar}`;
   if (fechaInicio) {
     url += `&fecha_inicio=${fechaInicio}`;
   }
@@ -43,15 +48,19 @@ export async function consultarSlots(fechaInicio = null, diasMostrar = 5) {
   return response.json();
 }
 
-// Agendar cita (con teléfono)
-export async function agendarCita(clienteNombre, clienteEmail, clienteCedula, clienteTelefono, fecha, hora) {
+// Agendar cita (con especialidad)
+export async function agendarCita(especialidad, clienteNombre, clienteEmail, clienteCedula, clienteTelefono, fecha, hora, clienteNotas = null) {
   const params = new URLSearchParams();
+  params.append('especialidad', especialidad);
   params.append('cliente_nombre', clienteNombre);
   params.append('cliente_email', clienteEmail);
   params.append('cliente_cedula', clienteCedula);
   params.append('cliente_telefono', clienteTelefono);
   params.append('fecha', fecha);
   params.append('hora', hora);
+  if (clienteNotas) {
+    params.append('cliente_notas', clienteNotas);
+  }
   
   const response = await fetch(`${API_URL}/api/v1/citas/agendar`, {
     method: 'POST',
@@ -71,9 +80,9 @@ export async function agendarCita(clienteNombre, clienteEmail, clienteCedula, cl
   return response.json();
 }
 
-// Cancelar cita
-export async function cancelarCita(bookingUid) {
-  const response = await fetch(`${API_URL}/api/v1/citas/${bookingUid}`, {
+// Cancelar cita (ahora necesita calendar_id además del event_id)
+export async function cancelarCita(eventId, calendarId) {
+  const response = await fetch(`${API_URL}/api/v1/citas/${eventId}?calendar_id=${encodeURIComponent(calendarId)}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   });
@@ -86,16 +95,21 @@ export async function cancelarCita(bookingUid) {
   return response.json();
 }
 
-// Reagendar cita (con teléfono)
-export async function reagendarCita(bookingUid, nuevaFecha, nuevaHora, clienteNombre, clienteEmail, clienteTelefono) {
+// Reagendar cita (ahora necesita calendar_id, event_id y especialidad)
+export async function reagendarCita(eventId, calendarId, nuevaFecha, nuevaHora, clienteNombre, clienteEmail, clienteTelefono, clienteCedula, clienteNotas = null) {
   const params = new URLSearchParams();
+  params.append('calendar_id', calendarId);
   params.append('nueva_fecha', nuevaFecha);
   params.append('nueva_hora', nuevaHora);
   params.append('cliente_nombre', clienteNombre);
   params.append('cliente_email', clienteEmail);
   params.append('cliente_telefono', clienteTelefono);
+  params.append('cliente_cedula', clienteCedula);
+  if (clienteNotas) {
+    params.append('cliente_notas', clienteNotas);
+  }
   
-  const response = await fetch(`${API_URL}/api/v1/citas/${bookingUid}/reagendar`, {
+  const response = await fetch(`${API_URL}/api/v1/citas/${eventId}/reagendar`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -113,9 +127,22 @@ export async function reagendarCita(bookingUid, nuevaFecha, nuevaHora, clienteNo
   return response.json();
 }
 
-// Obtener estadísticas para el Dashboard
-export async function obtenerEstadisticasDashboard() {
-  const response = await fetch(`${API_URL}/api/v1/citas/dashboard/stats`, {
+// Obtener estadísticas para el Dashboard (con filtro opcional por especialidad y fecha)
+export async function obtenerEstadisticasDashboard(especialidadId = null, fechaReferencia = null) {
+  let url = `${API_URL}/api/v1/citas/dashboard/stats`;
+  const params = new URLSearchParams();
+  if (especialidadId) {
+    params.append('especialidad_id', especialidadId);
+  }
+  if (fechaReferencia) {
+    params.append('fecha_referencia', fechaReferencia);
+  }
+  const queryString = params.toString();
+  if (queryString) {
+    url += `?${queryString}`;
+  }
+  
+  const response = await fetch(url, {
     headers: getAuthHeaders()
   });
   
@@ -127,12 +154,12 @@ export async function obtenerEstadisticasDashboard() {
   return response.json();
 }
 
-// Obtener historial de citas pasadas por cédula
-export async function obtenerHistorialCitas(cedula, fechaDesde = null, fechaHasta = null) {
+export async function obtenerHistorialCitas(cedula, fechaDesde = null, fechaHasta = null, especialidadId = null) {
   let url = `${API_URL}/api/v1/citas/historial/${cedula}`;
   const params = new URLSearchParams();
   if (fechaDesde) params.append('fecha_desde', fechaDesde);
   if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+  if (especialidadId) params.append('especialidad_id', especialidadId);
   if (params.toString()) url += `?${params.toString()}`;
   
   const response = await fetch(url, {
@@ -142,6 +169,19 @@ export async function obtenerHistorialCitas(cedula, fechaDesde = null, fechaHast
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Error al obtener historial');
+  }
+  
+  return response.json();
+}
+
+// Obtener lista de especialidades (para selector de admin)
+export async function obtenerEspecialidades() {
+  const response = await fetch(`${API_URL}/api/v1/especialidades/?empresa_id=1`, {
+    headers: getAuthHeaders()
+  });
+  
+  if (!response.ok) {
+    throw new Error('Error al obtener especialidades');
   }
   
   return response.json();

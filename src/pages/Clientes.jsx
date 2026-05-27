@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { obtenerHistorialCitas } from '../services/calcom';
+import { useState, useEffect } from 'react';
+import { obtenerHistorialCitas, obtenerEspecialidades } from '../services/calcom';
+import { getRolFromToken, getEspecialidadIdFromToken } from '../services/auth';
 import '../styles/Clientes.css';
 
 export default function Clientes() {
@@ -11,9 +12,29 @@ export default function Clientes() {
   const [error, setError] = useState('');
   const [buscado, setBuscado] = useState(false);
   
-  // 🔥 ESTADO PARA MODAL DE MOTIVO
+  // Estados para filtro de especialidad
+  const [especialidadesList, setEspecialidadesList] = useState([]);
+  const [especialidadSeleccionada, setEspecialidadSeleccionada] = useState(null);
+  
+  const userRol = getRolFromToken();
+  const isAdmin = userRol === 'admin';
+  const userEspecialidadId = getEspecialidadIdFromToken();
+  
+  // Estados para modal
   const [showMotivoModal, setShowMotivoModal] = useState(false);
   const [motivoSeleccionado, setMotivoSeleccionado] = useState('');
+
+  // Cargar especialidades si es admin
+  useEffect(() => {
+    if (isAdmin) {
+      obtenerEspecialidades()
+        .then(data => {
+          setEspecialidadesList(data);
+          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [isAdmin]);
 
   const handleBuscar = async () => {
     if (!cedula.trim()) {
@@ -24,7 +45,9 @@ export default function Clientes() {
     try {
       setLoading(true);
       setError('');
-      const data = await obtenerHistorialCitas(cedula, fechaDesde || null, fechaHasta || null);
+      // Para admin: usar especialidadSeleccionada; para doctor: usar userEspecialidadId
+      const especialidadId = isAdmin ? especialidadSeleccionada : userEspecialidadId;
+      const data = await obtenerHistorialCitas(cedula, fechaDesde || null, fechaHasta || null, especialidadId);
       setCitas(data.citas || []);
       setBuscado(true);
     } catch (err) {
@@ -71,8 +94,24 @@ export default function Clientes() {
 
   return (
     <div className="clientes-page">
-      <h1 className="titulo">Historial de Citas</h1>
-      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1 className="titulo">Historial de Citas</h1>
+        {isAdmin && especialidadesList.length > 0 && (
+          <div className="clientes-filtro-especialidad">
+            <label htmlFor="historial-especialidad-select">Filtrar por especialidad:</label>
+            <select
+              id="historial-especialidad-select"
+              value={especialidadSeleccionada || ''}
+              onChange={(e) => setEspecialidadSeleccionada(parseInt(e.target.value))}
+            >
+              {especialidadesList.map(esp => (
+                <option key={esp.id} value={esp.id}>🩺 {esp.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       {/* Filtros */}
       <div className="filtro-card">
         <div className="filtro-row">
@@ -133,7 +172,7 @@ export default function Clientes() {
                     <th>Fecha</th>
                     <th>Hora</th>
                     <th>Motivo de la cita</th>
-                </tr>
+                  </tr>
                 </thead>
                 <tbody>
                   {citas.map((cita) => (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { obtenerEstadisticasDashboard, obtenerCitas } from '../services/calcom';
+import { obtenerEstadisticasDashboard, obtenerCitas, obtenerEspecialidades } from '../services/calcom';
+import { getRolFromToken } from '../services/auth';
 import { useSocket } from '../hooks/useSocket';
 import '../styles/Dashboard.css';
 
@@ -9,67 +10,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [semanaOffset, setSemanaOffset] = useState(0);
+  const [especialidadesList, setEspecialidadesList] = useState([]);
+  const [especialidadSeleccionada, setEspecialidadSeleccionada] = useState(null);
   
-  const { isConnected, joinEmpresa, onCitaActualizada } = useSocket();
-
-  const recargarDatosSilenciosamente = useCallback(async () => {
-    try {
-      const [estadisticas, todasCitas] = await Promise.all([
-        obtenerEstadisticasDashboard(),
-        obtenerCitas()
-      ]);
-      
-      setStats(estadisticas);
-      
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const dentro7Dias = new Date();
-      dentro7Dias.setDate(hoy.getDate() + 7);
-      dentro7Dias.setHours(23, 59, 59, 999);
-      
-      const proximas = todasCitas
-        .filter(cita => {
-          const fechaCita = new Date(cita.start_time);
-          return cita.status === 'ACCEPTED' && fechaCita >= hoy && fechaCita <= dentro7Dias;
-        })
-        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-      
-      setCitasProximas(proximas);
-      setError('');
-    } catch (err) {
-      console.error('Error al recargar datos:', err);
-    }
-  }, []);
-
-  const cargarDatosIniciales = useCallback(async () => {
-    try {
-      setLoading(true);
-      await recargarDatosSilenciosamente();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [recargarDatosSilenciosamente]);
-
-  useEffect(() => {
-    const empresaId = 1;
-    if (isConnected) {
-      joinEmpresa(empresaId);
-    }
-  }, [isConnected, joinEmpresa]);
-
-  useEffect(() => {
-    const unsubscribe = onCitaActualizada((data) => {
-      console.log('📢 Cita actualizada en tiempo real:', data);
-      recargarDatosSilenciosamente();
-    });
-    return unsubscribe;
-  }, [onCitaActualizada, recargarDatosSilenciosamente]);
-
-  useEffect(() => {
-    cargarDatosIniciales();
-  }, [cargarDatosIniciales]);
+  const userRol = getRolFromToken();
+  const isDoctor = userRol === 'doctor';
+  const isAdmin = userRol === 'admin';
+  
+  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket(); // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
 
   const obtenerLunesDeSemana = (offset) => {
     const hoy = new Date();
@@ -82,6 +30,65 @@ export default function Dashboard() {
     lunesObjetivo.setDate(lunesActual.getDate() + (offset * 7));
     return lunesObjetivo;
   };
+
+  const fechaReferencia = obtenerLunesDeSemana(semanaOffset).toISOString().split('T')[0];
+
+  const recargarDatos = useCallback(async () => {
+    if (isAdmin && !especialidadSeleccionada) return;
+    try {
+      const [estadisticas, todasCitas] = await Promise.all([
+        obtenerEstadisticasDashboard(especialidadSeleccionada, fechaReferencia),
+        obtenerCitas(especialidadSeleccionada)
+      ]);
+      setStats(estadisticas);
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const dentro7Dias = new Date();
+      dentro7Dias.setDate(hoy.getDate() + 7);
+      dentro7Dias.setHours(23, 59, 59, 999);
+      const proximas = todasCitas
+        .filter(cita => {
+          const fechaCita = new Date(cita.start_time);
+          return cita.status === 'confirmed' && fechaCita >= hoy && fechaCita <= dentro7Dias;
+        })
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+      setCitasProximas(proximas);
+      setError('');
+    } catch (err) {
+      console.error(err);
+    }
+  }, [especialidadSeleccionada, fechaReferencia, isAdmin]);
+
+  // Cargar especialidades si es admin
+  useEffect(() => {
+    if (isAdmin) {
+      obtenerEspecialidades()
+        .then(data => {
+          setEspecialidadesList(data);
+          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [isAdmin]);
+
+  // Recargar datos cuando cambia la especialidad o la semana
+  useEffect(() => {
+    if (!isAdmin || especialidadSeleccionada) {
+      setLoading(true);
+      recargarDatos().finally(() => setLoading(false));
+    }
+  }, [recargarDatos, especialidadSeleccionada, semanaOffset, isAdmin]);
+
+  useEffect(() => {
+    const empresaId = 1;
+    if (isConnected) joinEmpresa(empresaId);
+  }, [isConnected, joinEmpresa]);
+
+  // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
+  useEffect(() => {
+    const unsubscribe = onCitasActualizadas(() => recargarDatos());
+    return unsubscribe;
+  }, [onCitasActualizadas, recargarDatos]);
 
   const irSiguienteSemana = () => setSemanaOffset(prev => prev + 1);
   const irSemanaActual = () => setSemanaOffset(0);
@@ -112,7 +119,7 @@ export default function Dashboard() {
       <div className="dashboard-container">
         <div className="dashboard-error">
           <p>Error: {error}</p>
-          <button onClick={cargarDatosIniciales} className="retry-btn">Reintentar</button>
+          <button onClick={() => recargarDatos()} className="retry-btn">Reintentar</button>
         </div>
       </div>
     );
@@ -141,8 +148,24 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <div className="socket-status" style={{ textAlign: 'right', fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444', marginBottom: '10px' }}>
-        {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        {isAdmin && especialidadesList.length > 0 && (
+          <div className="dashboard-filtro-especialidad">
+            <label htmlFor="especialidad-select">Filtrar por especialidad:</label>
+            <select
+              id="especialidad-select"
+              value={especialidadSeleccionada || ''}
+              onChange={(e) => setEspecialidadSeleccionada(parseInt(e.target.value))}
+            >
+              {especialidadesList.map(esp => (
+                <option key={esp.id} value={esp.id}>🩺 {esp.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="socket-status" style={{ fontSize: '12px', color: isConnected ? '#10b981' : '#ef4444' }}>
+          {isConnected ? '🟢 Tiempo real activo' : '🔴 Conectando...'}
+        </div>
       </div>
 
       <div className="dashboard-kpis">
@@ -153,7 +176,6 @@ export default function Dashboard() {
             <span className="kpi-value">{stats?.total_citas || 0}</span>
           </div>
         </div>
-
         <div className="kpi-card">
           <div className="kpi-icon hoy">⭐</div>
           <div className="kpi-info">
@@ -161,7 +183,6 @@ export default function Dashboard() {
             <span className="kpi-value">{stats?.citas_hoy || 0}</span>
           </div>
         </div>
-
         <div className="kpi-card">
           <div className="kpi-icon proximas">📆</div>
           <div className="kpi-info">
@@ -169,7 +190,6 @@ export default function Dashboard() {
             <span className="kpi-value">{stats?.citas_proximas || 0}</span>
           </div>
         </div>
-
         <div className="kpi-card">
           <div className="kpi-icon canceladas">❌</div>
           <div className="kpi-info">
@@ -194,7 +214,6 @@ export default function Dashboard() {
               <span className="rango-label">Semana: {obtenerRangoSemana()}</span>
             </div>
           </div>
-          
           <h3>📅 Calendario Semanal (Lunes a Viernes - 9:00 a 17:00)</h3>
           <div className="calendario-semanal">
             <div className="calendario-header">
@@ -236,11 +255,12 @@ export default function Dashboard() {
           ) : (
             <div className="lista-proximas-citas">
               {citasProximas.slice(0, 5).map((cita) => (
-                <div key={cita.uid} className="cita-item">
+                <div key={cita.uid || cita.booking_id} className="cita-item">
                   <div className="cita-info">
                     <strong>{cita.cliente_nombre || 'Paciente'}</strong>
                     <span>{new Date(cita.start_time).toLocaleDateString('es-EC')} - {new Date(cita.start_time).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</span>
                     {cita.notas && <span className="cita-notas">{cita.notas.length > 60 ? cita.notas.substring(0, 60) + '…' : cita.notas}</span>}
+                    {isDoctor && cita.especialidad && <span className="cita-especialidad">🩺 {cita.especialidad}</span>}
                   </div>
                 </div>
               ))}

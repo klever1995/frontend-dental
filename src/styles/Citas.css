@@ -295,3 +295,28 @@
     padding: 20px;
   }
 }
+
+.citas-filtro-especialidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.citas-filtro-especialidad label {
+  color: #9aa0b0;
+  font-size: 13px;
+}
+
+.citas-filtro-especialidad select {
+  background: #111216;
+  border: 1px solid #2a2a30;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.citas-filtro-especialidad select:hover {
+  border-color: #3b82f6;
+}
