@@ -174,9 +174,9 @@ export async function obtenerHistorialCitas(cedula, fechaDesde = null, fechaHast
   return response.json();
 }
 
-// Obtener lista de especialidades (para selector de admin)
-export async function obtenerEspecialidades() {
-  const response = await fetch(`${API_URL}/api/v1/especialidades/?empresa_id=1`, {
+// 🔥 CORREGIDO: ahora recibe empresaId como parámetro obligatorio
+export async function obtenerEspecialidades(empresaId) {
+  const response = await fetch(`${API_URL}/api/v1/especialidades/?empresa_id=${empresaId}`, {
     headers: getAuthHeaders()
   });
   

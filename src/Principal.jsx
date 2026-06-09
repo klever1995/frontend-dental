@@ -6,6 +6,7 @@ import Citas from './pages/Citas';
 import Clientes from './pages/Clientes';
 import Especialidades from './pages/Especialidades';
 import Usuarios from './pages/Usuarios';
+import Configuracion from './pages/Configuracion';
 import './Principal.css';
 
 export default function Principal() {
@@ -32,6 +33,8 @@ export default function Principal() {
         return <Especialidades />;
       case 'usuarios':
         return <Usuarios />;
+      case 'configuracion':
+        return <Configuracion />;
       default:
         return <Dashboard />;
     }
@@ -76,6 +79,12 @@ export default function Principal() {
                 className={`principal-nav-btn ${seccionActual === 'usuarios' ? 'active' : ''}`}
               >
                 👤 Usuarios
+              </button>
+              <button
+                onClick={() => setSeccionActual('configuracion')}
+                className={`principal-nav-btn ${seccionActual === 'configuracion' ? 'active' : ''}`}
+              >
+                ⚙️ Configuración
               </button>
             </>
           )}

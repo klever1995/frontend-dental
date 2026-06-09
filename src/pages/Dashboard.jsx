@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { obtenerEstadisticasDashboard, obtenerCitas, obtenerEspecialidades } from '../services/calcom';
-import { getRolFromToken } from '../services/auth';
+import { getRolFromToken, getEmpresaIdFromToken } from '../services/auth';
 import { useSocket } from '../hooks/useSocket';
 import '../styles/Dashboard.css';
 
@@ -16,8 +16,9 @@ export default function Dashboard() {
   const userRol = getRolFromToken();
   const isDoctor = userRol === 'doctor';
   const isAdmin = userRol === 'admin';
+  const empresaId = getEmpresaIdFromToken();
   
-  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket(); // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
+  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket();
 
   const obtenerLunesDeSemana = (offset) => {
     const hoy = new Date();
@@ -59,17 +60,32 @@ export default function Dashboard() {
     }
   }, [especialidadSeleccionada, fechaReferencia, isAdmin]);
 
-  // Cargar especialidades si es admin
+  // Cargar especialidades de la empresa del token
   useEffect(() => {
-    if (isAdmin) {
-      obtenerEspecialidades()
+    if (isAdmin && empresaId) {
+      setLoading(true);
+      obtenerEspecialidades(empresaId)
         .then(data => {
-          setEspecialidadesList(data);
-          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+          if (data && data.length > 0) {
+            setEspecialidadesList(data);
+            setEspecialidadSeleccionada(data[0].id);
+          } else {
+            setEspecialidadesList([]);
+            setEspecialidadSeleccionada(null);
+            setError('no_especialidades');
+          }
+          setLoading(false);
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+          console.error(err);
+          setError('Error al cargar especialidades: ' + err.message);
+          setLoading(false);
+        });
+    } else if (isAdmin && !empresaId) {
+      setError('No se pudo identificar la empresa. Inicia sesión nuevamente.');
+      setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, empresaId]);
 
   // Recargar datos cuando cambia la especialidad o la semana
   useEffect(() => {
@@ -79,12 +95,14 @@ export default function Dashboard() {
     }
   }, [recargarDatos, especialidadSeleccionada, semanaOffset, isAdmin]);
 
+  // Unir a sala de Socket.IO con empresa_id del token
   useEffect(() => {
-    const empresaId = 1;
-    if (isConnected) joinEmpresa(empresaId);
-  }, [isConnected, joinEmpresa]);
+    if (isConnected && empresaId) {
+      joinEmpresa(empresaId);
+    }
+  }, [isConnected, joinEmpresa, empresaId]);
 
-  // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
+  // Escuchar actualizaciones de citas
   useEffect(() => {
     const unsubscribe = onCitasActualizadas(() => recargarDatos());
     return unsubscribe;
@@ -114,7 +132,19 @@ export default function Dashboard() {
     );
   }
 
-  if (error) {
+  if (error === 'no_especialidades') {
+    return (
+      <div className="dashboard-container">
+        <div className="aviso-especialidades">
+          <div className="aviso-icon">📋</div>
+          <h3>No hay especialidades registradas</h3>
+          <p>No se pueden mostrar estadísticas hasta que se cree al menos una especialidad.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && error !== 'no_especialidades') {
     return (
       <div className="dashboard-container">
         <div className="dashboard-error">

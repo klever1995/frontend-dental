@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { obtenerUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from '../services/usuarios';
 import { obtenerEspecialidades } from '../services/especialidades';
+import { getEmpresaIdFromToken } from '../services/auth';
 import '../styles/Usuarios.css';
 
 export default function Usuarios() {
@@ -21,12 +22,15 @@ export default function Usuarios() {
   });
   const [accionLoading, setAccionLoading] = useState(false);
 
+  const empresaId = getEmpresaIdFromToken();
+
   const cargarDatos = async () => {
+    if (!empresaId) return;
     try {
       setLoading(true);
       const [usuariosData, especialidadesData] = await Promise.all([
         obtenerUsuarios(),
-        obtenerEspecialidades(1)
+        obtenerEspecialidades(empresaId)
       ]);
       setUsuarios(usuariosData);
       setEspecialidades(especialidadesData);
@@ -40,7 +44,8 @@ export default function Usuarios() {
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId]);
 
   const abrirModal = (modo, usuario = null) => {
     setModalMode(modo);
@@ -93,7 +98,7 @@ export default function Usuarios() {
     setAccionLoading(true);
     try {
       const dataEnviar = {
-        empresa_id: 1,
+        empresa_id: empresaId,
         nombre: formData.nombre,
         email: formData.email,
         rol: formData.rol,

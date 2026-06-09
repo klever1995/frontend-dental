@@ -459,3 +459,23 @@
 .dashboard-filtro-especialidad select:hover {
   border-color: #3b82f6;
 }
+
+.aviso-especialidades {
+  text-align: center;
+  padding: 40px;
+  background: #010b1b;
+  border-radius: 12px;
+  margin: 20px;
+  border: 1px solid #e0e0e0;
+}
+.aviso-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.aviso-especialidades h3 {
+  color: #eceaea;
+  margin-bottom: 8px;
+}
+.aviso-especialidades p {
+  color: #dddddd;
+}

@@ -68,3 +68,37 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+
+
+
+
+Nombre de la empresa: Clínica Dental Sonrisa
+
+Email del administrador: admin@prueba.com
+
+Contraseña: 123456
+
+Confirmar contraseña: 123456
+
+Número de WhatsApp: 593999999999 (solo para pruebas, no se enviará nada real)
+
+Teléfono del dueño: 0999999999 (opcional)
+
+https://developers.facebook.com/settings/developer/requests/
+
+facebook.com/settings?tab=business_tools
+
+K'l Cami
+
+https://59ed-191-99-12-8.ngrok-free.app/whatsapp/callback
+
+
+
+
+
+
+
+Centro Odontológico Camicenter
+
+Prueba WhatsApp Clean

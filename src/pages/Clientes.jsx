@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { obtenerHistorialCitas, obtenerEspecialidades } from '../services/calcom';
 import { getRolFromToken, getEspecialidadIdFromToken } from '../services/auth';
 import '../styles/Clientes.css';
+import { getEmpresaIdFromToken } from '../services/auth';
 
 export default function Clientes() {
   const [cedula, setCedula] = useState('');
@@ -27,12 +28,15 @@ export default function Clientes() {
   // Cargar especialidades si es admin
   useEffect(() => {
     if (isAdmin) {
-      obtenerEspecialidades()
-        .then(data => {
-          setEspecialidadesList(data);
-          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
-        })
-        .catch(err => console.error(err));
+      const empresaId = getEmpresaIdFromToken();
+      if (empresaId) {
+        obtenerEspecialidades(empresaId)  
+          .then(data => {
+            setEspecialidadesList(data);
+            if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+          })
+          .catch(err => console.error(err));
+      }
     }
   }, [isAdmin]);
 

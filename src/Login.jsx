@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { login } from './services/auth';
 import './Login.css';
 
@@ -29,7 +29,6 @@ function Login() {
     <div className="login-page">
       {/* IZQUIERDA - BRANDING */}
       <div className="login-branding">
-        {/* Watermark como imagen en lugar de CSS */}
         <img src="/Logo-Letra.png" alt="" className="login-branding__watermark" />
         
         <div className="login-branding__content">
@@ -80,6 +79,11 @@ function Login() {
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? 'Iniciando...' : 'Ingresar'}
           </button>
+
+          {/* 🔥 NUEVO: Enlace a registro */}
+          <div className="login-register-link">
+            ¿No tienes cuenta? <Link to="/registro">Regístrate aquí</Link>
+          </div>
         </form>
       </div>
     </div>

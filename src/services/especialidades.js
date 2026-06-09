@@ -11,7 +11,8 @@ function getAuthHeaders() {
   };
 }
 
-export async function obtenerEspecialidades(empresaId = 1) {
+// 🔥 CORREGIDO: ya no tiene valor por defecto, debe recibir empresaId obligatoriamente
+export async function obtenerEspecialidades(empresaId) {
   const response = await fetch(`${API_URL}/api/v1/especialidades/?empresa_id=${empresaId}`, {
     headers: getAuthHeaders()
   });

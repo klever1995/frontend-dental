@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { obtenerCitas, cancelarCita, reagendarCita, obtenerEspecialidades } from '../services/calcom';
-import { getRolFromToken } from '../services/auth';
+import { getRolFromToken, getEmpresaIdFromToken } from '../services/auth';
 import { useSocket } from '../hooks/useSocket';
 import '../styles/Citas.css';
 
@@ -23,8 +23,9 @@ export default function Citas() {
   
   const userRol = getRolFromToken();
   const isAdmin = userRol === 'admin';
+  const empresaId = getEmpresaIdFromToken();
   
-  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket(); // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
+  const { isConnected, joinEmpresa, onCitasActualizadas } = useSocket();
 
   // Recargar citas con filtro de especialidad
   const recargarCitasSilenciosamente = useCallback(async () => {
@@ -39,6 +40,7 @@ export default function Citas() {
       setCitaSeleccionadaId(null);
     } catch (err) {
       console.error('Error al recargar citas:', err);
+      setError('Error al cargar citas: ' + err.message);
     }
   }, [especialidadSeleccionada, isAdmin]);
 
@@ -53,17 +55,31 @@ export default function Citas() {
     }
   }, [recargarCitasSilenciosamente]);
 
-  // Cargar especialidades si es admin
+  // Cargar especialidades si es admin (CORREGIDO)
   useEffect(() => {
-    if (isAdmin) {
-      obtenerEspecialidades()
+    if (isAdmin && empresaId) {
+      setLoading(true);
+      obtenerEspecialidades(empresaId)
         .then(data => {
-          setEspecialidadesList(data);
-          if (data.length > 0) setEspecialidadSeleccionada(data[0].id);
+          if (data && data.length > 0) {
+            setEspecialidadesList(data);
+            setEspecialidadSeleccionada(data[0].id);
+          } else {
+            setEspecialidadesList([]);
+            setError('no_especialidades');
+          }
+          setLoading(false);
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+          console.error(err);
+          setError('Error al cargar especialidades: ' + err.message);
+          setLoading(false);
+        });
+    } else if (isAdmin && !empresaId) {
+      setError('No se pudo identificar la empresa. Inicia sesión nuevamente.');
+      setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, empresaId]);
 
   // Recargar cuando cambie la especialidad
   useEffect(() => {
@@ -73,13 +89,11 @@ export default function Citas() {
   }, [especialidadSeleccionada, isAdmin, cargarCitasIniciales]);
 
   useEffect(() => {
-    const empresaId = 1;
-    if (isConnected) {
+    if (isConnected && empresaId) {
       joinEmpresa(empresaId);
     }
-  }, [isConnected, joinEmpresa]);
+  }, [isConnected, joinEmpresa, empresaId]);
 
-  // 🔥 CAMBIADO: onCitaActualizada -> onCitasActualizadas
   useEffect(() => {
     const unsubscribe = onCitasActualizadas((data) => {
       console.log('📢 Cita actualizada en tiempo real (Citas):', data);
@@ -200,7 +214,19 @@ export default function Citas() {
     );
   }
 
-  if (error) {
+  if (error === 'no_especialidades') {
+  return (
+    <div className="citas-container">
+      <div className="aviso-especialidades">
+        <div className="aviso-icon">📋</div>
+        <h3>No hay especialidades registradas</h3>
+        <p>No se pueden gestionar citas hasta que se cree al menos una especialidad.</p>
+      </div>
+    </div>
+  );
+}
+
+  if (error && error !== 'no_especialidades') {
     return (
       <div className="citas-container">
         <div className="error-message">Error: {error}</div>

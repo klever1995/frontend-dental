@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { obtenerEspecialidades, crearEspecialidad, actualizarEspecialidad, eliminarEspecialidad } from '../services/especialidades';
+import { getEmpresaIdFromToken } from '../services/auth';
 import '../styles/Especialidades.css';
 
 export default function Especialidades() {
@@ -12,10 +13,13 @@ export default function Especialidades() {
   const [formData, setFormData] = useState({ nombre: '', descripcion: '', activa: true });
   const [accionLoading, setAccionLoading] = useState(false);
 
+  const empresaId = getEmpresaIdFromToken();
+
   const cargarEspecialidades = async () => {
+    if (!empresaId) return;
     try {
       setLoading(true);
-      const data = await obtenerEspecialidades(1);
+      const data = await obtenerEspecialidades(empresaId);
       setEspecialidades(data);
       setError('');
     } catch (err) {
@@ -27,7 +31,8 @@ export default function Especialidades() {
 
   useEffect(() => {
     cargarEspecialidades();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId]);
 
   const abrirModal = (modo, item = null) => {
     setModalMode(modo);
@@ -55,7 +60,7 @@ export default function Especialidades() {
     setAccionLoading(true);
     try {
       if (modalMode === 'crear') {
-        await crearEspecialidad({ empresa_id: 1, nombre: formData.nombre, descripcion: formData.descripcion, activa: formData.activa });
+        await crearEspecialidad({ empresa_id: empresaId, nombre: formData.nombre, descripcion: formData.descripcion, activa: formData.activa });
         alert('Especialidad creada exitosamente');
       } else {
         await actualizarEspecialidad(selectedId, { nombre: formData.nombre, descripcion: formData.descripcion, activa: formData.activa });
