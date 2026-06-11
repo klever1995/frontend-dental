@@ -8,10 +8,14 @@ export default function Configuracion() {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [empresa, setEmpresa] = useState(null);
+  
+  // Estado temporal para guardar los IDs que intercepta el listener de mensajes de Meta
+  const [metaAssets, setMetaAssets] = useState(null);
 
   // 1. Obtener ID de la empresa aliada/dentista
   useEffect(() => {
     const id = getEmpresaIdFromToken();
+    setMetaAssets(null); 
     setEmpresaId(id);
   }, []);
 
@@ -22,7 +26,7 @@ export default function Configuracion() {
         appId      : process.env.REACT_APP_META_APP_ID, 
         cookie     : true,
         xfbml      : true,
-        version    : 'v19.0' 
+        version    : 'v25.0' // 🔴 Forzamos la v25.0 como exige el estándar Embedded Signup v4
       });
     };
 
@@ -53,48 +57,19 @@ export default function Configuracion() {
   // 4. Escuchar la respuesta interactiva del modal de Meta (Embedded Signup v4)
   useEffect(() => {
     const handleMessage = async (event) => {
-      // Validar estrictamente que venga de dominios de confianza de Meta
       if (!event.origin.endsWith('facebook.com') && !event.origin.endsWith('meta.com')) return;
 
       try {
-        // A veces Meta envía objetos directos y a veces strings JSON
         const rawData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
 
         if (rawData.type !== 'WA_EMBEDDED_SIGNUP') return;
 
-        // Ajuste Estándar v4: Detecta cualquier variante de éxito (FINISH, FINISH_ONLY_WABA, etc.)
+        // Si el flujo termina con éxito, capturamos los identificadores comerciales de la ventana
         if (rawData.event && rawData.event.startsWith('FINISH')) {
-          // Meta expone estos campos exactos al finalizar con éxito
           const { phone_number_id, waba_id, business_id } = rawData.data || {};
-          console.log('Datos capturados de Meta (v4):', { phone_number_id, waba_id, business_id });
+          console.log('1. [Message Event] IDs de activos capturados:', { phone_number_id, waba_id, business_id });
 
-          if (!empresaId || !phone_number_id || !waba_id) {
-            alert('Faltan parámetros críticos del registro.');
-            return;
-          }
-
-          setLoading(true);
-          try {
-            // Mandamos los IDs comerciales directito a tu FastAPI
-            const result = await guardarDatosWhatsApp(empresaId, {
-              phone_number_id,
-              waba_id,
-              business_id
-            });
-
-            if (result.success) {
-              setIsConnected(true);
-              alert('¡WhatsApp Business vinculado con éxito!');
-              const updated = await obtenerEmpresa(empresaId);
-              setEmpresa(updated);
-            } else {
-              alert('El backend rechazó la vinculación.');
-            }
-          } catch (err) {
-            console.error('Error al comunicarse con el backend:', err);
-          } finally {
-            setLoading(false);
-          }
+          setMetaAssets({ phone_number_id, waba_id, business_id });
         }
 
         if (rawData.event === 'CANCEL') {
@@ -107,7 +82,7 @@ export default function Configuracion() {
           setLoading(false);
         }
       } catch (err) {
-        // Ignorar mensajes internos que no correspondan a nuestro flujo estructurado
+        // Ignorar mensajes ajenos a la estructura de Meta
       }
     };
 
@@ -115,7 +90,7 @@ export default function Configuracion() {
     return () => window.removeEventListener('message', handleMessage);
   }, [empresaId]);
 
-  // 5. Lanzar el modal flotante de Meta
+  // 5. Lanzar el modal flotante de Meta y despachar todo al Backend de FastAPI
   const handleConnectWhatsApp = () => {
     if (!window.FB) {
       alert('El SDK de Facebook aún se está cargando. Inténtalo de nuevo en un segundo.');
@@ -123,11 +98,49 @@ export default function Configuracion() {
     }
 
     setLoading(true);
+    setMetaAssets(null); // Reseteamos capturas previas por seguridad
 
     window.FB.login(
       (response) => {
-        if (response.authResponse) {
-          console.log('Sesión iniciada con éxito en OAuth. Código devuelto:', response.authResponse.code);
+        if (response.authResponse && response.authResponse.code) {
+          const authCode = response.authResponse.code;
+          console.log('2. [Callback OAuth] Código de autorización obtenido:', authCode);
+
+          // Pausa controlada para esperar a que el hook del evento 'message' actualice el estado
+          setTimeout(async () => {
+            if (!metaAssets || !metaAssets.phone_number_id || !metaAssets.waba_id) {
+              alert('No se pudieron recuperar los IDs de activos comerciales de Meta. Por favor, intenta de nuevo.');
+              setLoading(false);
+              return;
+            }
+
+            try {
+              console.log('3. [Despacho] Enviando todo unificado a tu endpoint...');
+              
+              // 🔴 MANDAMOS EL JSON COMPLETO: IDs + Código temporal de 30 segundos
+              const result = await guardarDatosWhatsApp(empresaId, {
+                phone_number_id: metaAssets.phone_number_id,
+                waba_id: metaAssets.waba_id,
+                business_id: metaAssets.business_id,
+                code: authCode 
+              });
+
+              if (result.success) {
+                setIsConnected(true);
+                alert('¡WhatsApp Business vinculado con éxito!');
+                const updated = await obtenerEmpresa(empresaId);
+                setEmpresa(updated);
+              } else {
+                alert('El backend rechazó la vinculación: ' + (result.message || 'Error desconocido'));
+              }
+            } catch (err) {
+              console.error('Error al comunicarse con el backend:', err);
+              alert('Error crítico de red al conectar con el servidor dental.');
+            } finally {
+              setLoading(false);
+            }
+          }, 800);
+
         } else {
           console.warn('Inicio de sesión cancelado o ventana cerrada prematuramente.');
           setLoading(false);
