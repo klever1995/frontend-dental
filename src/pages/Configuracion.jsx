@@ -8,39 +8,35 @@ export default function Configuracion() {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [empresa, setEmpresa] = useState(null);
+  
+  // Estado temporal para guardar los IDs que intercepta el listener de mensajes de Meta
+  const [metaAssets, setMetaAssets] = useState(null);
 
-  // 1. Obtener ID de la empresa desde el token
+  // 1. Obtener ID de la empresa aliada/dentista
   useEffect(() => {
     const id = getEmpresaIdFromToken();
+    setMetaAssets(null); 
     setEmpresaId(id);
   }, []);
 
-  // 2. Cargar e inicializar el SDK de Facebook (adaptado del código funcional de GitHub)
+  // 2. Cargar e Inicializar el SDK de Facebook en caliente
   useEffect(() => {
-    if (window.FB) return;
-
     window.fbAsyncInit = function() {
       window.FB.init({
-        appId: process.env.REACT_APP_META_APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: 'v25.0'
+        appId      : process.env.REACT_APP_META_APP_ID, 
+        cookie     : true,
+        xfbml      : true,
+        version    : 'v25.0' // 🔴 Forzamos la v25.0 como exige el estándar Embedded Signup v4
       });
-      console.log("Facebook SDK initialized");
     };
 
-    const loadSDK = () => {
-      if (document.getElementById("facebook-jssdk")) return;
-      const script = document.createElement("script");
-      script.id = "facebook-jssdk";
-      script.src = "https://connect.facebook.net/en_US/sdk.js";
-      script.async = true;
-      script.defer = true;
-      script.crossOrigin = "anonymous";
-      document.body.appendChild(script);
-    };
-
-    loadSDK();
+    // Cargar el script de forma asíncrona si no existe
+    if (!document.getElementById('facebook-jssdk')) {
+      const js = document.createElement('script');
+      js.id = 'facebook-jssdk';
+      js.src = "https://connect.facebook.net/es_LA/sdk.js";
+      document.body.appendChild(js);
+    }
   }, []);
 
   // 3. Verificar estado actual de la empresa
@@ -58,102 +54,105 @@ export default function Configuracion() {
     verificarConexion();
   }, [empresaId]);
 
-  // 4. Escuchar la respuesta interactiva del modal de Meta (Embedded Signup)
+  // 4. Escuchar la respuesta interactiva del modal de Meta (Embedded Signup v4)
   useEffect(() => {
     const handleMessage = async (event) => {
-      if (!event.origin.includes('facebook.com') && !event.origin.includes('meta.com')) return;
+      if (!event.origin.endsWith('facebook.com') && !event.origin.endsWith('meta.com')) return;
 
       try {
         const rawData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
 
         if (rawData.type !== 'WA_EMBEDDED_SIGNUP') return;
 
+        // Si el flujo termina con éxito, capturamos los identificadores comerciales de la ventana
         if (rawData.event && rawData.event.startsWith('FINISH')) {
           const { phone_number_id, waba_id, business_id } = rawData.data || {};
-          console.log('IDs capturados del evento message:', { phone_number_id, waba_id, business_id });
+          console.log('1. [Message Event] IDs de activos capturados:', { phone_number_id, waba_id, business_id });
 
-          // Guardar temporalmente estos IDs para usarlos después del callback
-          window.tempMetaAssets = { phone_number_id, waba_id, business_id };
+          setMetaAssets({ phone_number_id, waba_id, business_id });
         }
 
         if (rawData.event === 'CANCEL') {
-          console.warn('Usuario canceló el flujo');
+          console.warn('El usuario cerró o abandonó el asistente en el paso:', rawData.data?.current_step || 'Desconocido');
           setLoading(false);
         }
 
         if (rawData.event === 'ERROR') {
-          console.error('Error en Meta:', rawData.data?.error_message);
+          console.error('Ocurrió un error en el asistente de Meta:', rawData.data?.error_message || rawData.error);
           setLoading(false);
         }
       } catch (err) {
-        // Ignorar mensajes no relacionados
+        // Ignorar mensajes ajenos a la estructura de Meta
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [empresaId]);
 
-  // 5. Función adaptada del código de GitHub para lanzar el signup y procesar el código
-  const launchWhatsAppSignup = () => {
+  // 5. Lanzar el modal flotante de Meta y despachar todo al Backend de FastAPI
+  const handleConnectWhatsApp = () => {
     if (!window.FB) {
-      alert("Facebook SDK no cargado aún. Intenta de nuevo.");
+      alert('El SDK de Facebook aún se está cargando. Inténtalo de nuevo en un segundo.');
       return;
     }
 
     setLoading(true);
-    window.tempMetaAssets = null;
+    setMetaAssets(null); // Reseteamos capturas previas por seguridad
 
-    const fbLoginCallback = async (response) => {
-      if (response.authResponse && response.authResponse.code) {
-        const authCode = response.authResponse.code;
-        console.log("Código de autorización obtenido:", authCode);
+    window.FB.login(
+      (response) => {
+        if (response.authResponse && response.authResponse.code) {
+          const authCode = response.authResponse.code;
+          console.log('2. [Callback OAuth] Código de autorización obtenido:', authCode);
 
-        // Esperar un momento a que llegue el evento message con los IDs
-        setTimeout(async () => {
-          const assets = window.tempMetaAssets;
-          
-          if (!assets || !assets.phone_number_id || !assets.waba_id) {
-            alert('No se pudieron recuperar los IDs de WhatsApp. Por favor, intenta de nuevo.');
-            setLoading(false);
-            return;
-          }
-
-          try {
-            const result = await guardarDatosWhatsApp(empresaId, {
-              phone_number_id: assets.phone_number_id,
-              waba_id: assets.waba_id,
-              business_id: assets.business_id,
-              code: authCode
-            });
-
-            if (result.success) {
-              setIsConnected(true);
-              alert('WhatsApp Business conectado exitosamente');
-              const updated = await obtenerEmpresa(empresaId);
-              setEmpresa(updated);
-            } else {
-              alert('Error al conectar: ' + (result.message || 'Error desconocido'));
+          // Pausa controlada para esperar a que el hook del evento 'message' actualice el estado
+          setTimeout(async () => {
+            if (!metaAssets || !metaAssets.phone_number_id || !metaAssets.waba_id) {
+              alert('No se pudieron recuperar los IDs de activos comerciales de Meta. Por favor, intenta de nuevo.');
+              setLoading(false);
+              return;
             }
-          } catch (err) {
-            console.error('Error en backend:', err);
-            alert('Error al comunicarse con el servidor');
-          } finally {
-            setLoading(false);
-          }
-        }, 1000);
-      } else {
-        console.warn('Login cancelado o sin código');
-        setLoading(false);
-      }
-    };
 
-    window.FB.login(fbLoginCallback, {
-      config_id: process.env.REACT_APP_META_CONFIGURATION_ID,
-      response_type: "code",
-      override_default_response_type: true,
-      extras: { version: "v4" }
-    });
+            try {
+              console.log('3. [Despacho] Enviando todo unificado a tu endpoint...');
+              
+              // 🔴 MANDAMOS EL JSON COMPLETO: IDs + Código temporal de 30 segundos
+              const result = await guardarDatosWhatsApp(empresaId, {
+                phone_number_id: metaAssets.phone_number_id,
+                waba_id: metaAssets.waba_id,
+                business_id: metaAssets.business_id,
+                code: authCode 
+              });
+
+              if (result.success) {
+                setIsConnected(true);
+                alert('¡WhatsApp Business vinculado con éxito!');
+                const updated = await obtenerEmpresa(empresaId);
+                setEmpresa(updated);
+              } else {
+                alert('El backend rechazó la vinculación: ' + (result.message || 'Error desconocido'));
+              }
+            } catch (err) {
+              console.error('Error al comunicarse con el backend:', err);
+              alert('Error crítico de red al conectar con el servidor dental.');
+            } finally {
+              setLoading(false);
+            }
+          }, 800);
+
+        } else {
+          console.warn('Inicio de sesión cancelado o ventana cerrada prematuramente.');
+          setLoading(false);
+        }
+      },
+      {
+        config_id: process.env.REACT_APP_META_CONFIGURATION_ID, 
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { setup: {} }
+      }
+    );
   };
 
   // 6. Desconectar la integración
@@ -168,7 +167,6 @@ export default function Configuracion() {
       alert('WhatsApp desvinculado correctamente.');
     } catch (error) {
       console.error('Error al desconectar:', error);
-      alert('Error al desconectar');
     }
   };
 
@@ -197,7 +195,7 @@ export default function Configuracion() {
             <>
               <div className="status disconnected">⚠️ No configurado</div>
               <p>Vincula la línea de WhatsApp de tu consultorio dental para automatizar los recordatorios de citas.</p>
-              <button className="btn-connect" onClick={launchWhatsAppSignup} disabled={loading}>
+              <button className="btn-connect" onClick={handleConnectWhatsApp} disabled={loading}>
                 {loading ? 'Abriendo asistente...' : 'Conectar con Meta'}
               </button>
             </>
